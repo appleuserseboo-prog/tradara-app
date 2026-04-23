@@ -1,0 +1,45 @@
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL") 
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  email      String   @unique
+  password   String
+  name       String
+  isVerified Boolean  @default(false)
+  items      Item[]
+  createdAt  DateTime @default(now())
+}
+
+model Item {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  stockName    String
+  price        Float
+  description  String
+  category     String   @default("Uncategorized")
+  
+  // Global Location Logic
+  country      String   @default("Nigeria")
+  city         String   @default("")
+  area         String   @default("")
+  
+  contactLink  String
+  canBargain   Boolean  @default(true)
+  images       String[] 
+  
+  userId       String   @db.ObjectId
+  seller       User     @relation(fields: [userId], references: [id])
+  createdAt    DateTime @default(now())
+
+  // --- SCALABILITY INDEXES ---
+  // These allow MongoDB to find products instantly without scanning every document
+  @@index([stockName]) 
+  @@index([category])
+  @@index([userId]) // Useful for showing "My Items" in the dashboard
+}
