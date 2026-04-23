@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, Camera, Globe, MapPin, Landmark } from 'lucide-react';
+import { X, Camera } from 'lucide-react';
 import  API from '../services/api'; // Matches the fix in api.ts
 
 interface ListItemModalProps {

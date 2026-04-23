@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import API from '../services/api'; 
-import { Package, Trash2, Edit3, X, Save, MapPin } from 'lucide-react';
+import {  X, MapPin } from 'lucide-react';
 
 interface Item {
   id: string;

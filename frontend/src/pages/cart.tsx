@@ -1,6 +1,4 @@
-import React from 'react';
-import { Trash2, Plus, Minus } from 'lucide-react'; // Matches your current icon style
-
+import {useState ,useEffect} from 'react';
 export const Cart = () => {
   // Replace this with your actual data fetching logic later
   const cartItems = []; 

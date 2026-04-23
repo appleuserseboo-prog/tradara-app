@@ -24,10 +24,10 @@ export const uselogout = () => {
 }
 
 // Global Item Posting with High-Quality Image Support
-const uploadItem = async (endpoint: string, files: File[], data: any) => {
+/*const uploadItem = async (endpoint: string, files: File[], data: any) => {
   const formData = new FormData();
   
-  // Quality preservation: append raw binary unchanged
+  Quality preservation: append raw binary unchanged
   files.forEach(file => {
     formData.append('images', file); 
   });
@@ -40,5 +40,6 @@ const uploadItem = async (endpoint: string, files: File[], data: any) => {
     headers: { 'Content-Type': 'multipart/form-data' } // Crucial for binary transmission
   });
 };
+*/
 
 export default API;
