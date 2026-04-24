@@ -1,9 +1,10 @@
+
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: 'http://localhost:5000/api', // Update to your production URL later
+  baseURL: 'https://tradara-backend.onrender.com/api', 
 });
-
+// ... rest of code
 // Attach Token to every request for security
 API.interceptors.request.use((req) => {
   const token = localStorage.getItem('token');
