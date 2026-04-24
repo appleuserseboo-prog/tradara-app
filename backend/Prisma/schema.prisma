@@ -19,7 +19,7 @@ model User {
 
 model Item {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  title        String
+  title        String?
   stockName    String
   price        Float
   currency     String @default("NGN")
