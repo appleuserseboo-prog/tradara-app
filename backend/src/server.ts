@@ -15,7 +15,12 @@ const httpServer = createServer(app);
 
 // --- 1. CONFIGURATION ---
 const PORT = process.env.PORT || 5000;
-const allowedOrigins = ["http://localhost:5173"];
+
+// ✅ Updated allowedOrigins for Production
+const allowedOrigins = [
+    "http://localhost:5173", 
+    "https://tradara-app.vercel.app" 
+];
 
 // --- 2. SECURITY & TRAFFIC CONTROL ---
 app.use(helmet({ crossOriginResourcePolicy: false }));
@@ -42,7 +47,18 @@ const io = new Server(httpServer, {
 });
 
 // --- 4. MIDDLEWARE ---
-app.use(cors({ origin: allowedOrigins, credentials: true }));
+// ✅ Dynamic CORS logic to handle multiple origins safely
+app.use(cors({ 
+    origin: function (origin, callback) {
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('CORS policy: This origin is not allowed'), false);
+        }
+    }, 
+    credentials: true 
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/api/', generalLimiter);
@@ -72,6 +88,6 @@ app.use((err: any, req: any, res: any, next: any) => {
 
 // --- 7. START SERVER ---
 httpServer.listen(PORT, () => {
-    console.log(`\n🚀 [BACKEND] Tradara Server running on http://localhost:${PORT}`);
+    console.log(`\n🚀 [BACKEND] Tradara Server running.`);
     console.log(`📂 [PRISMA] Client recognized and ready.`);
 });

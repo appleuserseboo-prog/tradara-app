@@ -55,8 +55,8 @@ export const forgotPassword = async (req: Request, res: Response) => {
     const resetToken = jwt.sign({ id: user.id, purpose: 'password_reset' }, JWT_SECRET, { expiresIn: '1h' });
     
     // Create the frontend link
-    const resetLink = `http://localhost:5173/reset-password?token=${resetToken}`;
-
+// Replace localhost with your Vercel URL
+const resetLink = `https://tradara-app.vercel.app/reset-password?token=${resetToken}`;
     // Define the HTML content for the professional look
     // Inside your forgotPassword controller in auth.ts
 const emailHtml = `
