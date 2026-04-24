@@ -90,4 +90,4 @@ app.use((err: any, req: any, res: any, next: any) => {
 httpServer.listen(PORT, () => {
     console.log(`\n🚀 [BACKEND] Tradara Server running.`);
     console.log(`📂 [PRISMA] Client recognized and ready.`);
-});
+}); 
