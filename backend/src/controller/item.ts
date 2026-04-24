@@ -1,12 +1,10 @@
 import { Response, Request } from 'express';
-import prisma from "../config/db"; // ✅ Use the shared instance ONLY
-
-// Replace your updateItem and createItem in item.ts with these:
+import prisma from "../config/db"; 
 
 export const createItem = async (req: any, res: Response) => {
   try {
     const { 
-      stockName, price, currency, description, category, 
+      title, stockName, price, currency, description, category, 
       city, country, area, contactLink, canBargain 
     } = req.body;
 
@@ -14,9 +12,10 @@ export const createItem = async (req: any, res: Response) => {
 
     const newItem = await prisma.item.create({
       data: {
+        title: title || stockName, // ✅ Added Title (defaults to stockName if empty)
         stockName,
         price: parseFloat(price) || 0,
-        currency: currency || "₦", // ✅ Added Currency
+        currency: currency || "NGN", 
         description: description || "",
         category: category || "General",
         city: city || "",
@@ -30,19 +29,20 @@ export const createItem = async (req: any, res: Response) => {
     });
     res.status(201).json(newItem);
   } catch (error) {
+    console.error("Create Error:", error);
     res.status(500).json({ error: "Failed to post." });
   }
 };
 
-
 export const updateItem = async (req: any, res: Response) => {
   try {
-    const { stockName, price, currency, city, area, country, category, description, canBargain } = req.body;
+    const { title, stockName, price, currency, city, area, country, category, description, canBargain } = req.body;
     const { id } = req.params;
 
     const updated = await prisma.item.update({
       where: { id, userId: req.user.id },
       data: { 
+        title, // ✅ Added Title to update
         stockName, city, area, country, category, description, currency,
         canBargain: canBargain !== undefined ? (canBargain === 'true' || canBargain === true) : undefined,
         price: price ? parseFloat(String(price)) : undefined 
@@ -53,6 +53,8 @@ export const updateItem = async (req: any, res: Response) => {
     res.status(500).json({ error: "Update failed" });
   }
 };
+
+// ... keep getItems, getMyDashboardItems, and deleteItem the same as before
 export const getItems = async (req: any, res: Response) => {
   try {
     const { search, category, minPrice, maxPrice, city, area } = req.query;
