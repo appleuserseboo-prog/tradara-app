@@ -1,4 +1,4 @@
-import {useState ,useEffect} from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import api from '../services/api';
 import { Search, Loader2, MapPin, Filter, Sparkles } from 'lucide-react';
 import { ItemCard } from './../components/ItemCard';
@@ -10,10 +10,10 @@ export const Home = () => {
   const [category, setCategory] = useState('All');
   const [loading, setLoading] = useState(false);
 
-  // Legendary Category List
   const categories = ["All", "Electronics", "Textbooks", "Fashion", "Furniture", "Services", "Food"];
 
   const fetchItems = async () => {
+    if (loading) return; // ✅ BLOCK LOOP: Prevent multiple simultaneous calls
     setLoading(true);
     try {
       const params: any = {};
@@ -22,16 +22,16 @@ export const Home = () => {
       if (location.area) params.area = location.area;
       if (category !== "All") params.category = category;
 
-      // ✅ LOGIC: Direct API call with search and location filters
       const { data } = await api.get('/items', { params }); 
       setItems(data);
     } catch (err) {
-      console.error("Connection failed to fetch items", err);
+      console.error("Connection failed", err);
     } finally {
       setLoading(false);
     }
   };
 
+  // ✅ DEBOUNCED FETCH: Waits for user to stop typing
   useEffect(() => {
     const delay = setTimeout(() => {
       fetchItems();
@@ -39,22 +39,26 @@ export const Home = () => {
     return () => clearTimeout(delay);
   }, [searchTerm, location.city, location.area, category]);
 
-  // ✅ FIXED: WhatsApp Logic integrated for the grid
+  // ✅ LEGENDARY FUZZY FILTER: Matches partial strings instantly in the UI
+  const filteredItems = useMemo(() => {
+    return items.filter((item: any) => {
+      const query = searchTerm.toLowerCase();
+      const city = (item.city || "").toLowerCase();
+      const area = (item.area || "").toLowerCase();
+      const name = (item.stockName || "").toLowerCase();
+
+      return city.includes(query) || area.includes(query) || name.includes(query);
+    });
+  }, [items, searchTerm]);
+
   const handleWhatsAppChat = (phoneNumber: string, itemName: string) => {
-  // Clean the phone number (remove +, spaces, or dashes)
-  const cleanNumber = phoneNumber.replace(/\D/g, '');
-  
-  // Create the custom message
-  const message = encodeURIComponent(`Hello, I'm interested in your listing: ${itemName} on MarketPlace.`);
-  
-  // Direct Link: https://wa.me/number?text=message
-  window.open(`https://wa.me/${cleanNumber}?text=${message}`, '_blank');
-};
+    const cleanNumber = phoneNumber.replace(/\D/g, '');
+    const message = encodeURIComponent(`Hello, I'm interested in your listing: ${itemName} on MarketPlace.`);
+    window.open(`https://wa.me/${cleanNumber}?text=${message}, '_blank'`);
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-24 pb-20">
-      
-      {/* HERO SEARCH SECTION */}
       <div className="flex flex-col gap-8 mb-12">
         <div className="text-center space-y-2">
           <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white tracking-tight">
@@ -71,15 +75,11 @@ export const Home = () => {
             type="text"
             placeholder="Search for laptops, books, or services..."
             className="w-full bg-white dark:bg-slate-900 border-2 border-transparent focus:border-blue-600 rounded-[2.5rem] py-6 pl-16 pr-8 shadow-2xl shadow-blue-100 dark:shadow-none text-xl outline-none transition-all"
+            value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
-          <div className="absolute right-4 top-1/2 -translate-y-1/2 hidden md:flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-full font-bold text-sm">
-            <Sparkles size={16} />
-            Trending
-          </div>
         </div>
 
-        {/* LOCATION FILTERS */}
         <div className="flex flex-wrap gap-3 justify-center">
           <div className="relative">
              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -96,7 +96,6 @@ export const Home = () => {
           />
         </div>
 
-        {/* CATEGORY CHIPS */}
         <div className="flex items-center gap-3 overflow-x-auto pb-4 no-scrollbar justify-center">
           <Filter size={20} className="text-slate-400 mr-2" />
           {categories.map((cat) => (
@@ -115,8 +114,7 @@ export const Home = () => {
         </div>
       </div>
 
-      {/* ITEMS GRID */}
-      {items.length === 0 && !loading ? (
+      {filteredItems.length === 0 && !loading ? (
         <div className="flex flex-col items-center justify-center py-32 space-y-4">
           <div className="bg-slate-100 dark:bg-slate-800 p-6 rounded-full">
             <Search size={48} className="text-slate-300" />
@@ -125,7 +123,7 @@ export const Home = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-          {items.map((item: any) => (
+          {filteredItems.map((item: any) => (
             <ItemCard 
               key={item.id} 
               item={item} 

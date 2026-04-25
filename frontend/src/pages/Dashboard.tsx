@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import API from '../services/api'; 
-import {  X, MapPin } from 'lucide-react';
+import { X, MapPin } from 'lucide-react';
 
 interface Item {
   id: string;
@@ -24,10 +24,16 @@ export const Dashboard: React.FC = () => {
       setLoading(true);
       const response = await API.get('/items/me'); 
       setItems(response.data);
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+    } catch (err) { 
+      console.error("Dashboard fetch error:", err); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
-  useEffect(() => { fetchMyItems(); }, []);
+  useEffect(() => { 
+    fetchMyItems(); 
+  }, []);
 
   const handleUpdate = async () => {
     if (!editingItem) return;
@@ -43,7 +49,9 @@ export const Dashboard: React.FC = () => {
       setItems(prev => prev.map(item => (item.id || item._id) === id ? editingItem : item));
       setIsEditModalOpen(false);
       alert("Updated successfully!");
-    } catch (err) { alert("Update failed."); }
+    } catch (err) { 
+      alert("Update failed."); 
+    }
   };
 
   if (loading) return <div className="p-20 text-center dark:text-white font-bold uppercase tracking-widest animate-pulse">Loading Engine...</div>;
@@ -58,9 +66,25 @@ export const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {items.map((item) => (
           <div key={item.id || item._id} className="bg-white dark:bg-slate-900 rounded-[3rem] p-6 shadow-xl border border-slate-100 dark:border-white/5">
-            <div className="h-48 rounded-[2rem] overflow-hidden mb-6">
-              <img src={item.images?.[0]?.startsWith('http') ? item.images[0] : `http://localhost:5000/${item.images?.[0]}`} className="w-full h-full object-cover" alt="" />
+            
+            {/* IMAGE SECTION WITH PRODUCTION LOGIC */}
+            <div className="h-48 rounded-[2rem] overflow-hidden mb-6 bg-slate-100">
+              <img 
+                src={
+                  item.images?.[0]?.startsWith('http') 
+                    ? item.images[0] 
+                    :  `https://tradara-backend.onrender.com/${item.images?.[0]?.replace(/\\/g, '/')}`
+                } 
+                className="w-full h-full object-cover" 
+                alt={item.stockName}
+                // ✅ PREVENTS INFINITE LOOP ERROR COUNTING
+                onError={(e) => {
+                  e.currentTarget.src = "https://via.placeholder.com/400x300?text=Image+Not+Found";
+                  e.currentTarget.onerror = null; 
+                }}
+              />
             </div>
+
             <h3 className="font-black text-xl dark:text-white truncate uppercase">{item.stockName}</h3>
             <p className="text-blue-600 font-black text-2xl mb-2">{item.currency || '₦'}{item.price.toLocaleString()}</p>
             <p className="text-slate-400 text-[10px] font-bold mb-6 flex items-center gap-1 uppercase"><MapPin size={12}/> {item.city}, {item.area}</p>
@@ -69,8 +93,12 @@ export const Dashboard: React.FC = () => {
               <button onClick={() => { setEditingItem(item); setIsEditModalOpen(true); }} className="bg-slate-100 dark:bg-white/5 dark:text-white py-4 rounded-2xl font-black text-xs hover:bg-blue-600 hover:text-white transition-all">EDIT</button>
               <button onClick={async () => {
                  if(window.confirm("Delete listing?")) {
-                    await API.delete(`/items/${item.id || item._id}`);
-                    setItems(p => p.filter(i => (i.id || i._id) !== (item.id || item._id)));
+                    try {
+                      await API.delete(`/items/${item.id || item._id}`);
+                      setItems(p => p.filter(i => (i.id || i._id) !== (item.id || item._id)));
+                    } catch (err) {
+                      alert("Delete failed.");
+                    }
                  }
               }} className="bg-red-500/10 text-red-500 py-4 rounded-2xl font-black text-xs hover:bg-red-500 hover:text-white transition-all">DELETE</button>
             </div>
@@ -78,6 +106,7 @@ export const Dashboard: React.FC = () => {
         ))}
       </div>
 
+      {/* EDIT MODAL */}
       {isEditModalOpen && editingItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
           <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[3rem] p-10 relative">
