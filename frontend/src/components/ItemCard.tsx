@@ -11,12 +11,12 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
   const getImageUrl = (imagePath: string) => {
     if (!imagePath) return 'https://placehold.co/400x500?text=No+Image';
     
-    // If the path is already a Cloudinary URL, use it
+    // 1. If it's a Cloudinary URL, use it directly (Force HTTPS)
     if (imagePath.startsWith('http')) {
       return imagePath.replace('http://', 'https://');
     }
     
-    // If it's just a filename, point it to your LIVE Render backend
+    // 2. Point to your LIVE Render backend (NOT localhost)
     const baseUrl = 'https://tradara-backend.onrender.com';
     return `${baseUrl}/uploads/${imagePath.replace(/\\/g, '/')}`;
   };

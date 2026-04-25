@@ -54,7 +54,7 @@ export const Home = () => {
   const handleWhatsAppChat = (phoneNumber: string, itemName: string) => {
     const cleanNumber = phoneNumber.replace(/\D/g, '');
     const message = encodeURIComponent(`Hello, I'm interested in your listing: ${itemName} on MarketPlace.`);
-    window.open(`https://wa.me/${cleanNumber}?text=${message}, '_blank'`);
+    window.open(`https://wa.me/${cleanNumber}?text=${message}`, '_blank');
   };
 
   return (
