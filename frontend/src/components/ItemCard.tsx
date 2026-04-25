@@ -41,7 +41,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
     } 
 
     const message = `Hello, I saw your "${item.stockName}" on Legendary Engine. Is it still available?`;
-    window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}, '_blank'`);
+    window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
   return (

@@ -4,7 +4,7 @@ import prisma from "../config/db";
 export const createItem = async (req: any, res: Response) => {
   try {
     const { 
-      title, stockName, price, currency, description, category, 
+     stockName, price, currency, description, category, 
       city, country, area, contactLink, canBargain 
     } = req.body;
 
@@ -12,7 +12,6 @@ export const createItem = async (req: any, res: Response) => {
 
     const newItem = await prisma.item.create({
       data: {
-        title: title || stockName, // ✅ Added Title (defaults to stockName if empty)
         stockName,
         price: parseFloat(price) || 0,
         currency: currency || "NGN", 
@@ -36,13 +35,12 @@ export const createItem = async (req: any, res: Response) => {
 
 export const updateItem = async (req: any, res: Response) => {
   try {
-    const { title, stockName, price, currency, city, area, country, category, description, canBargain } = req.body;
+    const {  stockName, price, currency, city, area, country, category, description, canBargain } = req.body;
     const { id } = req.params;
 
     const updated = await prisma.item.update({
       where: { id, userId: req.user.id },
       data: { 
-        title, // ✅ Added Title to update
         stockName, city, area, country, category, description, currency,
         canBargain: canBargain !== undefined ? (canBargain === 'true' || canBargain === true) : undefined,
         price: price ? parseFloat(String(price)) : undefined 
