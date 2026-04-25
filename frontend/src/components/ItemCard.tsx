@@ -9,18 +9,17 @@ interface ItemCardProps {
 export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => {
   // ✅ DYNAMIC IMAGE PATH LOGIC
   const getImageUrl = (imagePath: string) => {
-    if (!imagePath) return 'https://via.placeholder.com/400?text=No+Image';
-    
-    // 1. If it's already a full URL (Cloudinary), use it directly!
-    if (imagePath.startsWith('http')) {
-      // Force HTTPS to avoid the "Mixed Content" error
-      return imagePath.replace('http://', 'https://');
-    }
-    
-    // 2. Backup for local testing (only if imagePath is just a filename)
-    const baseUrl = 'https://tradara-backend.onrender.com';
-    return `${baseUrl}/uploads/${imagePath.replace(/\\/g, '/')}`;
-  };
+  if (!imagePath) return 'https://placehold.co/400x500?text=No+Image';
+  
+  // If the path is already a Cloudinary URL, use it
+  if (imagePath.startsWith('http')) {
+    return imagePath.replace('http://', 'https://');
+  }
+  
+  // If it's just a filename, point it to your LIVE Render backend
+  const baseUrl = 'https://tradara-backend.onrender.com';
+  return `${baseUrl}/uploads/${imagePath.replace(/\\/g, '/')}`;
+};
 
   const handleContact = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -48,16 +47,17 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
   return (
     <div className="group bg-white dark:bg-slate-900 rounded-[2.5rem] overflow-hidden border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-2xl transition-all duration-500">
       <div className="relative aspect-[3/4] overflow-hidden bg-slate-100">
-        <img 
-          src={getImageUrl(item.images?.[0])} 
-          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-          alt={item.stockName}
-          // ✅ ERROR GUARD: Stops the counting loop
-          onError={(e) => { 
-            e.currentTarget.src = 'https://via.placeholder.com/400?text=Image+Not+Found'; 
-            e.currentTarget.onerror = null; 
-          }}
-        />
+        // Update your img tag in ItemCard.tsx
+<img 
+  src={getImageUrl(item.images?.[0])} 
+  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+  alt={item.stockName}
+  onError={(e) => { 
+    // This stops the loop by clearing the handler after the first failure
+    e.currentTarget.onerror = null; 
+    e.currentTarget.src = 'https://placehold.co/400x500?text=No+Image+Found'; 
+  }}
+/>
         <div className="absolute top-4 left-4 backdrop-blur-md bg-white/70 px-4 py-2 rounded-2xl border border-white/20">
           <span className="font-black text-slate-900 text-lg">
             {item.currency || '₦'}{Number(item.price).toLocaleString()}
