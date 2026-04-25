@@ -10,11 +10,16 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
   // ✅ DYNAMIC IMAGE PATH LOGIC
   const getImageUrl = (imagePath: string) => {
     if (!imagePath) return 'https://via.placeholder.com/400?text=No+Image';
-    if (imagePath.startsWith('http')) return imagePath;
     
-    // Replace localhost with your live Render URL
+    // 1. If it's already a full URL (Cloudinary), use it directly!
+    if (imagePath.startsWith('http')) {
+      // Force HTTPS to avoid the "Mixed Content" error
+      return imagePath.replace('http://', 'https://');
+    }
+    
+    // 2. Backup for local testing (only if imagePath is just a filename)
     const baseUrl = 'https://tradara-backend.onrender.com';
-    return `${baseUrl}/${imagePath.replace(/\\/g, '/')}`;
+    return `${baseUrl}/uploads/${imagePath.replace(/\\/g, '/')}`;
   };
 
   const handleContact = (e: React.MouseEvent) => {
