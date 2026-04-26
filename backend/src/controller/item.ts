@@ -2,8 +2,12 @@ import { Response, Request } from 'express';
 import prisma from "../config/db"; 
 import { v2 as cloudinary } from 'cloudinary';
 
-// Ensure Cloudinary is configured (usually done in a separate config file, 
-// but it uses your process.env variables automatically)
+// ✅ CLOUDINARY CONFIGURATION (Crucial for fixing the 500 Error)
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 export const createItem = async (req: any, res: Response) => {
   try {
@@ -18,12 +22,13 @@ export const createItem = async (req: any, res: Response) => {
     if (req.files && (req.files as any[]).length > 0) {
       const uploadPromises = (req.files as any[]).map(file => 
         cloudinary.uploader.upload(file.path, {
-          folder: 'tradara_marketplace', // Optional: organizes your images in Cloudinary
+          folder: 'tradara_marketplace', 
+          resource_type: 'auto' // Ensures it handles different image types
         })
       );
 
       const uploadResults = await Promise.all(uploadPromises);
-      // We grab the 'secure_url' which starts with https://res.cloudinary.com
+      // Save the secure HTTPS URL from Cloudinary
       imagePaths = uploadResults.map(result => result.secure_url);
     }
 
@@ -38,16 +43,19 @@ export const createItem = async (req: any, res: Response) => {
         country: country || "Nigeria",
         area: area || "",
         contactLink: contactLink || "",
-        images: imagePaths, // This now saves the permanent Cloudinary links
+        images: imagePaths, 
         canBargain: canBargain === 'true' || canBargain === true, 
         userId: req.user.id 
       }
     });
 
     res.status(201).json(newItem);
-  } catch (error) {
-    console.error("Create Error:", error);
-    res.status(500).json({ error: "Failed to post item to cloud." });
+  } catch (error: any) {
+    console.error("Cloudinary Upload Error Details:", error);
+    res.status(500).json({ 
+      error: "Failed to post item to cloud.",
+      details: error.message // This helps you see the exact error in the console
+    });
   }
 };
 
