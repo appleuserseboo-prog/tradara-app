@@ -50,8 +50,9 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
         <img 
           src={getImageUrl(item.images?.[0])} 
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-          alt={item.stockName}
+          alt={item.stockName || "Product Image"}
           onError={(e) => { 
+            // ✅ STOPS THE INFINITE LOOP
             e.currentTarget.onerror = null; 
             e.currentTarget.src = 'https://placehold.co/400x500?text=No+Image+Found'; 
           }}

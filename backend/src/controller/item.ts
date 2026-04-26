@@ -1,14 +1,31 @@
 import { Response, Request } from 'express';
 import prisma from "../config/db"; 
+import { v2 as cloudinary } from 'cloudinary';
+
+// Ensure Cloudinary is configured (usually done in a separate config file, 
+// but it uses your process.env variables automatically)
 
 export const createItem = async (req: any, res: Response) => {
   try {
     const { 
-     stockName, price, currency, description, category, 
+      stockName, price, currency, description, category, 
       city, country, area, contactLink, canBargain 
     } = req.body;
 
-    const imagePaths = req.files ? (req.files as any[]).map(file => file.path || file.location) : [];
+    let imagePaths: string[] = [];
+
+    // ✅ CLOUDINARY UPLOAD LOGIC
+    if (req.files && (req.files as any[]).length > 0) {
+      const uploadPromises = (req.files as any[]).map(file => 
+        cloudinary.uploader.upload(file.path, {
+          folder: 'tradara_marketplace', // Optional: organizes your images in Cloudinary
+        })
+      );
+
+      const uploadResults = await Promise.all(uploadPromises);
+      // We grab the 'secure_url' which starts with https://res.cloudinary.com
+      imagePaths = uploadResults.map(result => result.secure_url);
+    }
 
     const newItem = await prisma.item.create({
       data: {
@@ -21,21 +38,22 @@ export const createItem = async (req: any, res: Response) => {
         country: country || "Nigeria",
         area: area || "",
         contactLink: contactLink || "",
-        images: imagePaths,
+        images: imagePaths, // This now saves the permanent Cloudinary links
         canBargain: canBargain === 'true' || canBargain === true, 
         userId: req.user.id 
       }
     });
+
     res.status(201).json(newItem);
   } catch (error) {
     console.error("Create Error:", error);
-    res.status(500).json({ error: "Failed to post." });
+    res.status(500).json({ error: "Failed to post item to cloud." });
   }
 };
 
 export const updateItem = async (req: any, res: Response) => {
   try {
-    const {  stockName, price, currency, city, area, country, category, description, canBargain } = req.body;
+    const { stockName, price, currency, city, area, country, category, description, canBargain } = req.body;
     const { id } = req.params;
 
     const updated = await prisma.item.update({
@@ -52,7 +70,6 @@ export const updateItem = async (req: any, res: Response) => {
   }
 };
 
-// ... keep getItems, getMyDashboardItems, and deleteItem the same as before
 export const getItems = async (req: any, res: Response) => {
   try {
     const { search, category, minPrice, maxPrice, city, area } = req.query;
@@ -60,7 +77,6 @@ export const getItems = async (req: any, res: Response) => {
     const items = await prisma.item.findMany({
       where: {
         AND: [
-          // If a category is selected and it's not "All", filter strictly by it
           category && category !== 'All' ? { category: String(category) } : {},
           search ? { stockName: { contains: String(search), mode: 'insensitive' } } : {},
           city ? { city: { contains: String(city), mode: 'insensitive' } } : {},
@@ -77,8 +93,7 @@ export const getItems = async (req: any, res: Response) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    if (items.length === 0) return res.status(200).json([]); // Return empty array instead of 404 to avoid frontend errors
-    res.json(items);
+    res.json(items || []);
   } catch (error) {
     console.error("Search Error:", error);
     res.status(500).json({ error: "Search engine failure" });
@@ -110,4 +125,3 @@ export const deleteItem = async (req: any, res: Response) => {
     res.status(500).json({ error: "Unauthorized or item not found" });
   }
 };
-
