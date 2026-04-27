@@ -1,137 +1,168 @@
 import { useState, useEffect, useMemo } from 'react';
 import api from '../services/api';
-import { Search, Loader2, MapPin, Filter, Sparkles } from 'lucide-react';
+import { Search, Loader2, MapPin, Filter, Globe, MessageCircle } from 'lucide-react';
 import { ItemCard } from './../components/ItemCard';
+import { motion } from 'framer-motion';
 
 export const Home = () => {
   const [items, setItems] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [location, setLocation] = useState({ country: '', city: '', area: '' });
+  const [location, setLocation] = useState({ city: '', area: '' });
   const [category, setCategory] = useState('All');
   const [loading, setLoading] = useState(false);
 
-  const categories = ["All", "Electronics", "Textbooks", "Fashion", "Furniture", "Services", "Food"];
+  const categories = ["All", "Electronics", "Textbooks", "Fashion", "Furniture", "Services", "Food", "others"];
 
   const fetchItems = async () => {
-    if (loading) return; // ✅ BLOCK LOOP: Prevent multiple simultaneous calls
     setLoading(true);
     try {
-      const params: any = {};
-      if (searchTerm) params.search = searchTerm;
-      if (location.city) params.city = location.city;
-      if (location.area) params.area = location.area;
-      if (category !== "All") params.category = category;
-
+      const params: any = {
+        search: searchTerm || undefined,
+        city: location.city || undefined,
+        area: location.area || undefined,
+        category: category !== "All" ? category : undefined
+      };
       const { data } = await api.get('/items', { params }); 
       setItems(data);
     } catch (err) {
-      console.error("Connection failed", err);
+      console.error("Fetch failed", err);
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ DEBOUNCED FETCH: Waits for user to stop typing
   useEffect(() => {
-    const delay = setTimeout(() => {
-      fetchItems();
-    }, 500);
+    const delay = setTimeout(fetchItems, 400);
     return () => clearTimeout(delay);
   }, [searchTerm, location.city, location.area, category]);
 
-  // ✅ LEGENDARY FUZZY FILTER: Matches partial strings instantly in the UI
   const filteredItems = useMemo(() => {
+    const query = searchTerm.toLowerCase();
     return items.filter((item: any) => {
-      const query = searchTerm.toLowerCase();
       const city = (item.city || "").toLowerCase();
       const area = (item.area || "").toLowerCase();
       const name = (item.stockName || "").toLowerCase();
-
-      return city.includes(query) || area.includes(query) || name.includes(query);
+      return name.includes(query) || city.includes(query) || area.includes(query);
     });
   }, [items, searchTerm]);
 
-  const handleWhatsAppChat = (phoneNumber: string, itemName: string) => {
-    const cleanNumber = phoneNumber.replace(/\D/g, '');
-    const message = encodeURIComponent(`Hello, I'm interested in your listing: ${itemName} on MarketPlace.`);
-    window.open(`https://wa.me/${cleanNumber}?text=${message}`, '_blank');
-  };
-
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-24 pb-20">
-      <div className="flex flex-col gap-8 mb-12">
-        <div className="text-center space-y-2">
-          <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white tracking-tight">
-            Find everything on <span className="text-blue-600">Campus.</span>
+    <div className="min-h-screen">
+      {/* 🧩 1. HERO SECTION */}
+      <section className="max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center py-20">
+        <motion.div 
+          initial={{ opacity: 0, x: -30 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.8 }}
+          className="space-y-8"
+        >
+          <div className="inline-block px-4 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-black tracking-widest uppercase">
+            🚀 The Future of Commerce
+          </div>
+          <h1 className="text-6xl md:text-8xl font-black tracking-tighter leading-[0.9]">
+            BECOME <br /> 
+            <span className="neon-text-gradient">LEGENDARY</span>
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 font-medium">Trusted marketplace for students and locals.</p>
-        </div>
-
-        <div className="relative max-w-3xl mx-auto w-full group">
-          <div className="absolute left-6 top-1/2 -translate-y-1/2 text-blue-600 z-10">
-            {loading ? <Loader2 className="animate-spin" size={26} /> : <Search size={26} />}
+          <p className="text-xl md:text-2xl text-slate-400 font-medium max-w-lg leading-relaxed">
+            Turn your business into a global brand. The marketplace where unknown names become global icons.
+          </p>
+          
+          <div className="flex gap-4">
+            <button className="px-8 py-5 bg-gradient-to-r from-blue-600 to-violet-600 rounded-2xl font-black text-lg hover:scale-105 transition-all neon-glow-blue flex items-center gap-3">
+              🌍 START SELLING WORLDWIDE
+            </button>
           </div>
-          <input 
-            type="text"
-            placeholder="Search for laptops, books, or services..."
-            className="w-full bg-white dark:bg-slate-900 border-2 border-transparent focus:border-blue-600 rounded-[2.5rem] py-6 pl-16 pr-8 shadow-2xl shadow-blue-100 dark:shadow-none text-xl outline-none transition-all"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
+          
+          <p className="text-slate-500 text-sm flex items-center gap-2">
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            Join 10,000+ sellers reaching customers in 190+ countries.
+          </p>
+        </motion.div>
 
-        <div className="flex flex-wrap gap-3 justify-center">
-          <div className="relative">
-             <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-             <input 
-                placeholder="City (e.g. Saki)" 
-                className="rounded-2xl pl-10 pr-4 py-3 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500"
-                onChange={(e) => setLocation({...location, city: e.target.value})}
-              />
+        {/* Hero Visual Mockup */}
+        <motion.div 
+           initial={{ opacity: 0, scale: 0.9 }}
+           animate={{ opacity: 1, scale: 1 }}
+           className="relative flex justify-center"
+        >
+          <div className="absolute inset-0 bg-blue-600/20 blur-[120px] rounded-full animate-glow" />
+          <div className="glass-card w-[280px] h-[560px] rounded-[3rem] border-4 border-white/10 overflow-hidden relative z-10 p-2">
+             <div className="bg-black w-full h-full rounded-[2.5rem] overflow-hidden flex flex-col items-center justify-center">
+                <Globe className="text-blue-500 animate-spin-slow mb-4" size={48} />
+                <div className="px-4 text-center">
+                   <div className="h-2 w-20 bg-slate-800 rounded mx-auto mb-2" />
+                   <div className="h-2 w-12 bg-slate-800 rounded mx-auto" />
+                </div>
+             </div>
           </div>
-          <input 
-            placeholder="Area / Campus Name" 
-            className="rounded-2xl px-6 py-3 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500"
-            onChange={(e) => setLocation({...location, area: e.target.value})}
-          />
-        </div>
+        </motion.div>
+      </section>
 
-        <div className="flex items-center gap-3 overflow-x-auto pb-4 no-scrollbar justify-center">
-          <Filter size={20} className="text-slate-400 mr-2" />
+      {/* 🧩 2. SOCIAL PROOF STRIP */}
+      <div className="border-y border-white/5 bg-white/5 backdrop-blur-sm py-10 mb-20">
+        <div className="max-w-7xl mx-auto px-6 flex flex-wrap justify-around gap-8 text-center">
+          <div><div className="text-3xl font-black">🌍 190+</div><div className="text-xs text-slate-500 uppercase font-bold tracking-tighter">Countries</div></div>
+          <div><div className="text-3xl font-black text-blue-500">📦 50K+</div><div className="text-xs text-slate-500 uppercase font-bold tracking-tighter">Listings</div></div>
+          <div><div className="text-3xl font-black text-violet-500">🚀 24/7</div><div className="text-xs text-slate-500 uppercase font-bold tracking-tighter">Growth</div></div>
+          <div><div className="text-3xl font-black">🔗 Global</div><div className="text-xs text-slate-500 uppercase font-bold tracking-tighter">Connections</div></div>
+        </div>
+      </div>
+
+      {/* 🧩 3. INTERACTIVE SEARCH BAR */}
+      <div className="max-w-5xl mx-auto px-6 -mt-20 relative z-30 mb-16">
+        <div className="glass-card p-4 rounded-[2.5rem] flex flex-col md:flex-row gap-4 items-center">
+          <div className="flex-1 flex items-center gap-4 px-6">
+            <Search className="text-blue-500" />
+            <input 
+              className="bg-transparent border-none outline-none w-full text-lg placeholder:text-slate-600"
+              placeholder="Search items worldwide..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2 w-full md:w-auto">
+            <input placeholder="City" className="flex-1 md:w-32 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-500" onChange={(e) => setLocation({...location, city: e.target.value})} />
+            <input placeholder="Area" className="flex-1 md:w-32 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-500" onChange={(e) => setLocation({...location, area: e.target.value})} />
+            <button className="bg-blue-600 px-8 py-3 rounded-xl font-black hover:bg-blue-700 transition-all uppercase text-xs">Search</button>
+          </div>
+        </div>
+      </div>
+
+      {/* 🧩 4. CATEGORIES */}
+      <div className="max-w-7xl mx-auto px-6 mb-12 flex items-center gap-3 overflow-x-auto no-scrollbar pb-2">
+          <Filter size={18} className="text-slate-500 flex-shrink-0" />
           {categories.map((cat) => (
             <button
               key={cat}
               onClick={() => setCategory(cat)}
-              className={`px-6 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all ${
+              className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
                 category === cat 
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' 
-                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-blue-600 border border-transparent'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20 scale-105' 
+                : 'bg-white/5 text-slate-400 hover:text-white border border-white/5'
               }`}
             >
               {cat}
             </button>
           ))}
-        </div>
       </div>
 
-      {filteredItems.length === 0 && !loading ? (
-        <div className="flex flex-col items-center justify-center py-32 space-y-4">
-          <div className="bg-slate-100 dark:bg-slate-800 p-6 rounded-full">
-            <Search size={48} className="text-slate-300" />
-          </div>
-          <p className="text-xl font-bold text-slate-400">No items found matching your filters.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-          {filteredItems.map((item: any) => (
-            <ItemCard 
-              key={item.id} 
-              item={item} 
-              onWhatsAppClick={() => handleWhatsAppChat(item.contactLink, item.stockName)} 
-            />
-          ))}
-        </div>
-      )}
+      {/* 🧩 5. THE MAIN GRID (with Framer Motion) */}
+      <div className="max-w-7xl mx-auto px-6 pb-32">
+        {loading && items.length === 0 ? (
+          <div className="flex justify-center py-20"><Loader2 className="animate-spin text-blue-600" size={48} /></div>
+        ) : (
+          <motion.div 
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8"
+          >
+            {filteredItems.map((item: any) => (
+              <ItemCard key={item.id} item={item} />
+            ))}
+          </motion.div>
+        )}
+      </div>
     </div>
   );
 };

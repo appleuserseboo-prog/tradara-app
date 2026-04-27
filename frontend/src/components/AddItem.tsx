@@ -28,7 +28,7 @@ export const AddItem: React.FC = () => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
 
-  // ✅ Updated to handle all input types including the new Currency dropdown
+  // ✅ Handles all input types including the new Currency dropdown and Area field
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const val = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
@@ -55,7 +55,7 @@ export const AddItem: React.FC = () => {
     setError(null);
 
     const data = new FormData();
-    // ✅ Matches your Schema.prisma exactly
+    // ✅ Matches your Prisma Schema and Backend expectations
     data.append('stockName', formData.stockName);
     data.append('price', formData.price);
     data.append('currency', formData.currency);
@@ -63,7 +63,7 @@ export const AddItem: React.FC = () => {
     data.append('category', formData.category);
     data.append('city', formData.city);
     data.append('country', formData.country);
-    data.append('area', formData.area);
+    data.append('area', formData.area); // Ensure area is appended
     data.append('contactLink', formData.contactLink);
     data.append('canBargain', String(formData.canBargain));
 
@@ -135,10 +135,10 @@ export const AddItem: React.FC = () => {
           <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] shadow-sm grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="md:col-span-2">
               <label className="text-xs font-black uppercase text-slate-400 ml-2">Item Name</label>
-              <input name="stockName" required className="w-full bg-slate-50 dark:bg-white/5 rounded-2xl py-4 px-6 mt-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white font-bold" onChange={handleChange} />
+              <input name="stockName" value={formData.stockName} required className="w-full bg-slate-50 dark:bg-white/5 rounded-2xl py-4 px-6 mt-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white font-bold" onChange={handleChange} />
             </div>
 
-            {/* ✅ NEW: Global Currency Dropdown */}
+            {/* Global Currency Dropdown */}
             <div>
               <label className="text-xs font-black uppercase text-slate-400 ml-2">Currency</label>
               <select name="currency" value={formData.currency} className="w-full bg-slate-50 dark:bg-white/5 rounded-2xl py-4 px-6 mt-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white font-bold" onChange={handleChange}>
@@ -153,12 +153,12 @@ export const AddItem: React.FC = () => {
 
             <div>
               <label className="text-xs font-black uppercase text-slate-400 ml-2">Price Magnitude</label>
-              <input name="price" type="number" required className="w-full bg-slate-50 dark:bg-white/5 rounded-2xl py-4 px-6 mt-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white font-bold" onChange={handleChange} />
+              <input name="price" value={formData.price} type="number" required className="w-full bg-slate-50 dark:bg-white/5 rounded-2xl py-4 px-6 mt-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white font-bold" onChange={handleChange} />
             </div>
 
             <div className="md:col-span-2">
               <label className="text-xs font-black uppercase text-slate-400 ml-2">Description</label>
-              <textarea name="description" rows={3} className="w-full bg-slate-50 dark:bg-white/5 rounded-2xl py-4 px-6 mt-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" onChange={handleChange} placeholder="Tell us more about the product..."></textarea>
+              <textarea name="description" value={formData.description} rows={3} className="w-full bg-slate-50 dark:bg-white/5 rounded-2xl py-4 px-6 mt-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" onChange={handleChange} placeholder="Tell us more about the product..."></textarea>
             </div>
 
             <div>
@@ -169,6 +169,7 @@ export const AddItem: React.FC = () => {
                 <option value="Books">Books</option>
                 <option value="Services">Services</option>
                 <option value="Food">Food</option>
+                <option value="Others">Others</option> {/* ✅ Added "Others" */}
               </select>
             </div>
           </div>
@@ -182,11 +183,11 @@ export const AddItem: React.FC = () => {
               </div>
               <div>
                 <label className="text-xs font-black uppercase text-slate-400">City</label>
-                <input name="city" required placeholder="e.g. Ogbomoso" className="w-full bg-slate-50 dark:bg-white/5 rounded-xl py-3 px-4 mt-1 outline-none dark:text-white font-bold" onChange={handleChange} />
+                <input name="city" value={formData.city} required placeholder="e.g. Ogbomoso" className="w-full bg-slate-50 dark:bg-white/5 rounded-xl py-3 px-4 mt-1 outline-none dark:text-white font-bold" onChange={handleChange} />
               </div>
               <div>
                 <label className="text-xs font-black uppercase text-slate-400">Area</label>
-                <input name="area" required placeholder="e.g. Under-G" className="w-full bg-slate-50 dark:bg-white/5 rounded-xl py-3 px-4 mt-1 outline-none dark:text-white font-bold" onChange={handleChange} />
+                <input name="area" value={formData.area} required placeholder="e.g. Under-G" className="w-full bg-slate-50 dark:bg-white/5 rounded-xl py-3 px-4 mt-1 outline-none dark:text-white font-bold" onChange={handleChange} />
               </div>
             </div>
 
@@ -194,7 +195,7 @@ export const AddItem: React.FC = () => {
               <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl"><MessageCircle size={20}/></div>
               <div className="flex-1">
                 <label className="text-xs font-black uppercase text-slate-400">WhatsApp Number</label>
-                <input name="contactLink" required placeholder="+234..." className="w-full bg-transparent border-b border-slate-100 dark:border-white/10 py-2 outline-none focus:border-blue-500 dark:text-white font-bold" onChange={handleChange} />
+                <input name="contactLink" value={formData.contactLink} required placeholder="+234..." className="w-full bg-transparent border-b border-slate-100 dark:border-white/10 py-2 outline-none focus:border-blue-500 dark:text-white font-bold" onChange={handleChange} />
               </div>
             </div>
           </div>
