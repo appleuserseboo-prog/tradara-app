@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageCircle, MapPin, BadgeCheck, ShoppingCart } from 'lucide-react';
+import { MessageCircle, MapPin, BadgeCheck, ShoppingCart, MessageSquare } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 
 interface ItemCardProps {
@@ -13,6 +13,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
   const getImageUrl = (imagePath: string) => {
     if (!imagePath) return 'https://placehold.co/400x500?text=No+Image';
     if (imagePath.includes('cloudinary.com')) {
+      // ✅ Uses Cloudinary auto-optimization for faster mobile loading
       return imagePath.replace('/upload/', '/upload/w_500,c_fill,g_auto,q_auto,f_auto/');
     }
     if (imagePath.startsWith('http')) return imagePath;
@@ -36,7 +37,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
     } 
 
     const message =` Hello, I saw your "${item.stockName}" on Tradara. Is it still available?`;
-    // ✅ Opens in new tab to prevent "about:blank" lock
+    // ✅ Opens in new tab to prevent "about:blank" navigation issues on mobile
     window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
   };
 
@@ -96,19 +97,22 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
           "{item.description}"
         </p>
         
-        <div className="flex gap-2">
+        {/* ✅ UPDATED RESPONSIVE BUTTON SECTION */}
+        <div className="flex flex-col sm:flex-row gap-2 mt-4">
+          {/* CHAT BUTTON - Full width on mobile, half on laptop */}
           <button 
-            onClick={handleContact} 
-            className="flex-1 py-4 bg-white text-black rounded-2xl font-black text-[10px] tracking-widest hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-2 uppercase"
+            onClick={handleContact}
+            className="flex-1 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white py-3 px-4 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-slate-100 transition-all active:scale-95 border border-slate-200 dark:border-slate-700 uppercase tracking-widest"
           >
-            <MessageCircle size={16} /> Chat
+            <MessageSquare size={16} /> CHAT
           </button>
-          
+
+          {/* + CART BUTTON - Full width on mobile, half on laptop */}
           <button 
             onClick={() => addToCart(item)}
-            className="flex-1 py-4 bg-slate-100 dark:bg-white/10 dark:text-white rounded-2xl font-black text-[10px] tracking-widest hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-2 uppercase"
+            className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-blue-700 transition-all active:scale-95 shadow-lg shadow-blue-500/20 uppercase tracking-widest"
           >
-            <ShoppingCart size={16} /> + Cart
+            <ShoppingCart size={16} /> + CART
           </button>
         </div>
       </div>
