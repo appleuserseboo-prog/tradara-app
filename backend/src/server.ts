@@ -11,19 +11,15 @@ import prisma from './config/db';
 dotenv.config();
 
 const app = express();
-app.set('trust proxy', 1); // Trust first proxy for rate limiting behind proxies
+app.set('trust proxy', 1); 
 const httpServer = createServer(app);
 
-// --- 1. CONFIGURATION ---
 const PORT = process.env.PORT || 5000;
-
-// ✅ Updated allowedOrigins for Production
 const allowedOrigins = [
     "http://localhost:5173", 
     "https://tradara-app.vercel.app" 
 ];
 
-// --- 2. SECURITY & TRAFFIC CONTROL ---
 app.use(helmet({ crossOriginResourcePolicy: false }));
 
 const generalLimiter = rateLimit({
@@ -38,7 +34,6 @@ const authLimiter = rateLimit({
     message: { message: "Too many login/reset attempts. Try again in an hour." }
 });
 
-// --- 3. SOCKET.IO CONFIG ---
 const io = new Server(httpServer, {
     cors: {
         origin: allowedOrigins, 
@@ -47,8 +42,6 @@ const io = new Server(httpServer, {
     }
 });
 
-// --- 4. MIDDLEWARE ---
-// ✅ Dynamic CORS logic to handle multiple origins safely
 app.use(cors({ 
     origin: function (origin, callback) {
         if (!origin || allowedOrigins.indexOf(origin) !== -1) {
@@ -62,6 +55,12 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// ✅ NEW: Health Check Route for Cron-job
+app.get('/health', (req, res) => {
+  res.status(200).send('Server is alive');
+});
+
 app.use('/api/', generalLimiter);
 app.use('/api/auth', authLimiter);
 app.use('/uploads', express.static('uploads')); 
@@ -75,10 +74,8 @@ io.on("connection", (socket) => {
     console.log(`[SOCKET] User connected: ${socket.id}`);
 });
 
-// --- 5. ROUTES ---
 app.use('/api', apiRoutes); 
 
-// --- 6. STABILITY (GLOBAL ERROR HANDLER) ---
 app.use((err: any, req: any, res: any, next: any) => {
   console.error("SERVER ERROR:", err.stack);
   res.status(err.status || 500).json({
@@ -87,8 +84,7 @@ app.use((err: any, req: any, res: any, next: any) => {
   });
 });
 
-// --- 7. START SERVER ---
 httpServer.listen(PORT, () => {
     console.log(`\n🚀 [BACKEND] Tradara Server running.`);
     console.log(`📂 [PRISMA] Client recognized and ready.`);
-}); 
+});

@@ -60,7 +60,7 @@ export const Register: React.FC<RegisterProps> = ({ onRegisterSuccess }) => {
             <UserPlus size={32} />
           </div>
           <h2 className="text-4xl font-black tracking-tighter dark:text-white italic">BECOME LEGENDARY</h2>
-          <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.3em] mt-2">Join the LAUTECH Marketplace</p>
+          <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.3em] mt-2">Join the TRADARA Marketplace</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

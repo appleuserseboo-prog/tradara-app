@@ -25,7 +25,7 @@ export const createItem = async (req: any, res: Response) => {
       data: {
         stockName,
         price: parseFloat(price) || 0,
-        currency: currency || "NGN", 
+        currency: currency || "₦", 
         description: description || "",
         category: category || "General",
         city: city || "",
@@ -51,7 +51,7 @@ export const getItems = async (req: any, res: Response) => {
       where: {
         AND: [
           category && category !== 'All' ? { category: String(category) } : {},
-          // ✅ FUZZY SEARCH FOR ALL FIELDS
+          // ✅ CASE-INSENSITIVE FUZZY SEARCH FOR ALL FIELDS
           search ? { stockName: { contains: String(search), mode: 'insensitive' } } : {},
           city ? { city: { contains: String(city), mode: 'insensitive' } } : {},
           area ? { area: { contains: String(area), mode: 'insensitive' } } : {},
@@ -59,7 +59,7 @@ export const getItems = async (req: any, res: Response) => {
       },
       include: { seller: { select: { name: true } } },
       orderBy: { createdAt: 'desc' },
-      take: 50 // ✅ PERFORMANCE: Limit results for faster loading
+      take: 50 
     });
 
     res.json(items || []);
@@ -67,8 +67,6 @@ export const getItems = async (req: any, res: Response) => {
     res.status(500).json({ error: "Search failed" });
   }
 };
-
-
 
 export const updateItem = async (req: any, res: Response) => {
   try {
@@ -88,7 +86,6 @@ export const updateItem = async (req: any, res: Response) => {
     res.status(500).json({ error: "Update failed" });
   }
 };
-
 
 export const getMyDashboardItems = async (req: any, res: Response) => {
   try {
