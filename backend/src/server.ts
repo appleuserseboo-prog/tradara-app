@@ -6,7 +6,7 @@ import * as dotenv from 'dotenv';
 import helmet from 'helmet'; 
 import rateLimit from 'express-rate-limit'; 
 import apiRoutes from './routes/index'; 
-import prisma from './config/db'; 
+import prisma from './lib/prisma'; // ✅ Now using the singleton client
 
 dotenv.config();
 
@@ -56,9 +56,9 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ NEW: Health Check Route for Cron-job
-app.get('/health', (req, res) => {
-  res.status(200).send('Server is alive');
+// ✅ LIGHTWEIGHT HEALTH CHECK: Point your Cron-job URL here
+app.get('/api/health', (req, res) => {
+  res.status(200).send('Server is alive and legendary!');
 });
 
 app.use('/api/', generalLimiter);
@@ -86,5 +86,5 @@ app.use((err: any, req: any, res: any, next: any) => {
 
 httpServer.listen(PORT, () => {
     console.log(`\n🚀 [BACKEND] Tradara Server running.`);
-    console.log(`📂 [PRISMA] Client recognized and ready.`);
+    console.log(`📂 [PRISMA] Singleton Client recognized.`);
 });

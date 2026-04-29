@@ -2,7 +2,7 @@ import React, { useEffect, useState, createContext } from "react";
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from "react-router-dom";
 import { 
   PlusCircle, Search, LayoutDashboard, 
-  LogOut, Moon, Sun, ShoppingBag
+  LogOut, Moon, Sun, ShoppingBag, HomeIcon
 } from "lucide-react";
 
 import { Home } from "./pages/Home";
@@ -42,71 +42,62 @@ const AppContent: React.FC = () => {
     <AppContext.Provider value={{ token, user, searchQuery, setSearchQuery, isDarkMode }}>
       <div className={`${isDarkMode ? 'dark bg-slate-950 text-white' : 'bg-[#F4F7FF] text-slate-900'} min-h-screen transition-colors duration-500 font-sans`}>
         
-        <nav className={`fixed top-0 w-full z-50 border-b ${isDarkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-white/80 border-slate-200'} backdrop-blur-md px-2`}>
-          <div className="max-w-7xl mx-auto h-16 flex items-center justify-between gap-2">
+        <nav className={`fixed top-0 w-full z-50 border-b ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} backdrop-blur-md`}>
+          <div className="max-w-7xl mx-auto px-2 h-16 flex items-center justify-between gap-1">
             
-            {/* LOGO - Shrinks on tiny screens */}
-            <Link to="/" className="flex items-center gap-2 font-bold text-xl text-blue-600 shrink-0">
-              <div className="bg-blue-600 p-1.5 rounded-lg">
-                <ShoppingBag className="w-5 h-5 text-white" />
-              </div>
-              <span className="hidden sm:block tracking-tighter uppercase font-black text-sm">Tradara</span>
+            {/* 1. HOME */}
+            <Link to="/" className="flex flex-col items-center justify-center min-w-[50px] group">
+              <HomeIcon className={`w-5 h-5 ${isDarkMode ? 'text-white' : 'text-slate-700'}`} />
+              <span className="text-[10px] font-medium mt-0.5">Home</span>
             </Link>
 
-            {/* SEARCH BAR - Hidden on mobile to save space for icons */}
-            <div className="hidden md:flex flex-1 max-w-md mx-4 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input 
-                type="text"
-                placeholder="Search campus items..."
-                className={`w-full pl-10 pr-4 py-2 rounded-xl border ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-transparent'} focus:ring-2 focus:ring-blue-500 outline-none text-sm`}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
+            {/* 2. NIGHT MODE */}
+            <button onClick={() => setIsDarkMode(!isDarkMode)} className="flex flex-col items-center justify-center min-w-[50px]">
+              {isDarkMode ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-slate-600" />}
+              <span className="text-[10px] font-medium mt-0.5">{isDarkMode ? 'Day' : 'Night'}</span>
+            </button>
 
-            {/* ACTION ICONS - Wrapped in a flex-wrap container */}
-            <div className="flex items-center gap-1 sm:gap-3">
-              
-              <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors">
-                {isDarkMode ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-slate-600" />}
-              </button>
+            {token ? (
+              <>
+                {/* 3. SELL */}
+                <Link to="/add-product" className="flex flex-col items-center justify-center min-w-[50px] text-blue-600">
+                  <PlusCircle className="w-5 h-5" />
+                  <span className="text-[10px] font-bold mt-0.5 uppercase">Sell</span>
+                </Link>
+                
+                {/* 4. DASHBOARD */}
+                <Link to="/dashboard" className="flex flex-col items-center justify-center min-w-[50px]">
+                  <LayoutDashboard className="w-5 h-5" />
+                  <span className="text-[10px] font-medium mt-0.5">Menu</span>
+                </Link>
 
-              {token ? (
-                <>
-                  <Link to="/add-product" className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors flex items-center gap-1" title="Sell">
-                    <PlusCircle className="w-6 h-6" />
-                    <span className="hidden lg:inline font-bold text-xs uppercase">Sell</span>
-                  </Link>
-                  
-                  <Link to="/dashboard" className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg" title="Dashboard">
-                    <LayoutDashboard className="w-6 h-6" />
-                  </Link>
-
-                  <button onClick={handleLogout} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg" title="Logout">
-                    <LogOut className="w-6 h-6" />
-                  </button>
-                </>
-              ) : (
-                <div className="flex items-center">
-                  <Link to="/login" className="px-3 py-2 text-xs font-bold uppercase text-slate-600 dark:text-slate-300">Login</Link>
-                  <Link to="/register" className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-blue-500/20">Join</Link>
-                </div>
+                {/* 5. EXIT */}
+                <button onClick={handleLogout} className="flex flex-col items-center justify-center min-w-[50px] text-red-500">
+                  <LogOut className="w-5 h-5" />
+                  <span className="text-[10px] font-medium mt-0.5">Exit</span>
+                </button>
+              </>
+            ) : (
+              <div className="flex gap-2 items-center">
+                <Link to="/login" className="text-xs font-bold uppercase">Login</Link>
+                <Link to="/register" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-[10px] font-black uppercase shadow-md">Join</Link>
+              </div>
+            )}
+            
+            {/* 6. CART */}
+            <Link to="/cart" className="relative flex flex-col items-center justify-center min-w-[50px]">
+              <ShoppingBag className={`w-5 h-5 ${isDarkMode ? 'text-white' : 'text-slate-700'}`} />
+              <span className="text-[10px] font-medium mt-0.5">Cart</span>
+              {cart.length > 0 && (
+                <span className="absolute top-[-2px] right-[8px] bg-red-600 text-white text-[8px] w-3.5 h-3.5 rounded-full flex items-center justify-center font-black border border-white dark:border-slate-900">
+                  {cart.length}
+                </span>
               )}
-              
-              {/* DYNAMIC CART - Positioned to stay visible on mobile */}
-              <Link to="/cart" className="relative p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-all">
-                <ShoppingBag className="w-6 h-6 text-slate-700 dark:text-white" />
-                {cart.length > 0 && (
-                  <span className="absolute top-0 right-0 bg-red-600 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-black border-2 border-white dark:border-slate-900">
-                    {cart.length}
-                  </span>
-                )}
-              </Link>
-            </div>
+            </Link>
           </div>
         </nav>
 
-        <main className="pt-24 pb-12 px-4 max-w-7xl mx-auto">
+        <main className="pt-20 pb-12 px-4 max-w-7xl mx-auto">
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login onLoginSuccess={handleAuthSuccess} />} /> 

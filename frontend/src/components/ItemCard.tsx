@@ -13,7 +13,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
   const getImageUrl = (imagePath: string) => {
     if (!imagePath) return 'https://placehold.co/400x500?text=No+Image';
     if (imagePath.includes('cloudinary.com')) {
-      // ✅ Uses Cloudinary auto-optimization for faster mobile loading
+      // ✅ DATA SAVER: Uses Cloudinary auto-format (WebP/AVIF) and auto-quality
       return imagePath.replace('/upload/', '/upload/w_500,c_fill,g_auto,q_auto,f_auto/');
     }
     if (imagePath.startsWith('http')) return imagePath;
@@ -37,7 +37,6 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
     } 
 
     const message =` Hello, I saw your "${item.stockName}" on Tradara. Is it still available?`;
-    // ✅ Opens in new tab to prevent "about:blank" navigation issues on mobile
     window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
   };
 
@@ -47,6 +46,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
       <div className="relative aspect-[4/5] overflow-hidden bg-slate-900">
         <img 
           src={getImageUrl(item.images?.[0])} 
+          loading="lazy" // ✅ DATA SAVER: Only loads when visible on screen
           className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700"
           alt={item.stockName}
           onError={(e) => { e.currentTarget.src = 'https://placehold.co/400x500?text=Image+Not+Found'; }}
@@ -97,9 +97,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
           "{item.description}"
         </p>
         
-        {/* ✅ UPDATED RESPONSIVE BUTTON SECTION */}
         <div className="flex flex-col sm:flex-row gap-2 mt-4">
-          {/* CHAT BUTTON - Full width on mobile, half on laptop */}
           <button 
             onClick={handleContact}
             className="flex-1 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white py-3 px-4 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-slate-100 transition-all active:scale-95 border border-slate-200 dark:border-slate-700 uppercase tracking-widest"
@@ -107,7 +105,6 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
             <MessageSquare size={16} /> CHAT
           </button>
 
-          {/* + CART BUTTON - Full width on mobile, half on laptop */}
           <button 
             onClick={() => addToCart(item)}
             className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-blue-700 transition-all active:scale-95 shadow-lg shadow-blue-500/20 uppercase tracking-widest"
