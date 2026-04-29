@@ -58,7 +58,7 @@ export const Navbar: React.FC = () => {
           />
         </div>
 
-        {/* ✅ UPDATED RESPONSIVE ACTIONS SECTION */}
+        {/* RESPONSIVE ACTIONS SECTION */}
         <div className="flex items-center gap-2 sm:gap-4 flex-wrap justify-end">
           
           {/* THE FIRST GROUP: Theme & Sell - Always together */}
@@ -104,12 +104,18 @@ export const Navbar: React.FC = () => {
               </Link>
             </div>
           ) : (
-            /* LOGIN / JOIN - Visible when logged out */
-            <div className="flex items-center gap-2">
-              <Link to="/login" className="px-4 py-2 font-bold text-sm dark:text-white">
+            /* ✅ UPDATED: Right side of Navbar (Logged Out State) */
+            <div className="flex items-center gap-4 md:gap-6">
+              <Link 
+                to="/login" 
+                className="text-sm font-bold dark:text-white hover:text-blue-600 transition-colors uppercase tracking-widest"
+              >
                 Login
               </Link>
-              <Link to="/register" className="bg-blue-600 text-white px-5 py-2 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20">
+              <Link 
+                to="/register" 
+                className="bg-blue-600 text-white px-5 py-2 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all"
+              >
                 Join
               </Link>
             </div>

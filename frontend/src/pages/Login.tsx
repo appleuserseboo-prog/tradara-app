@@ -55,7 +55,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             <Mail className="absolute left-4 top-4 text-slate-500" size={20} />
             <input 
               type="email" 
-              placeholder="Campus Email" 
+              placeholder="Enter your Email" 
               className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-6 text-white outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
               value={email}
               onChange={(e) => setEmail(e.target.value)}

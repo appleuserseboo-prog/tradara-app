@@ -79,7 +79,7 @@ export const Register: React.FC<RegisterProps> = ({ onRegisterSuccess }) => {
             <div className="relative">
               <Mail className="absolute left-4 top-4 text-slate-400" size={20} />
               <input 
-                type="email" required placeholder="Campus Email"
+                type="email" required placeholder="Enter your Email"
                 className="w-full bg-slate-50 dark:bg-white/5 border-none rounded-2xl py-4 pl-12 pr-4 outline-none focus:ring-2 focus:ring-blue-600 transition-all dark:text-white"
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
               />
