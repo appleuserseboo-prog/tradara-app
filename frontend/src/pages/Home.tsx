@@ -108,52 +108,54 @@ export const Home = () => {
         </motion.div>
       </section>
 
-      {/* 🧩 2. SOCIAL PROOF STRIP */}
-      <div className="border-y border-white/5 bg-white/5 backdrop-blur-md py-12 mb-20 shadow-inner">
+      {/* 🧩 2. SOCIAL PROOF STRIP - ✅ LEGENDARY VISIBILITY UPDATE */}
+      <div className="border-y border-slate-200 bg-slate-50/50 backdrop-blur-md py-14 mb-20">
         <div className="max-w-7xl mx-auto px-6 flex flex-wrap justify-around gap-12">
-          <div className="flex flex-col items-center group">
-            <div className="p-4 bg-blue-500/10 rounded-2xl mb-3 group-hover:bg-blue-500/20 transition-colors">
-              <Globe2 className="text-blue-500" size={32} />
+          {/* Countries */}
+          <div className="flex flex-col items-center group transition-all hover:-translate-y-1">
+            <div className="p-4 bg-blue-500 rounded-2xl mb-4 shadow-lg shadow-blue-200 text-white">
+              <Globe2 size={32} />
             </div>
-            <div className="text-4xl font-black text-white tracking-tighter">190+</div>
-            <div className="text-[10px] text-blue-400 uppercase font-black tracking-[0.2em] mt-1">Countries</div>
+            <div className="text-4xl font-black text-slate-800 tracking-tighter group-hover:text-blue-600 transition-colors">190+</div>
+            <div className="text-[10px] text-slate-500 uppercase font-black tracking-[0.3em] mt-1">Countries</div>
           </div>
 
-          <div className="flex flex-col items-center group">
-            <div className="p-4 bg-cyan-500/10 rounded-2xl mb-3 group-hover:bg-cyan-500/20 transition-colors">
-              <Package className="text-cyan-500" size={32} />
+          {/* Listings */}
+          <div className="flex flex-col items-center group transition-all hover:-translate-y-1">
+            <div className="p-4 bg-cyan-500 rounded-2xl mb-4 shadow-lg shadow-cyan-200 text-white">
+              <Package size={32} />
             </div>
-            <div className="text-4xl font-black text-white tracking-tighter">50K+</div>
-            <div className="text-[10px] text-cyan-400 uppercase font-black tracking-[0.2em] mt-1">Listings</div>
+            <div className="text-4xl font-black text-slate-800 tracking-tighter group-hover:text-cyan-600 transition-colors">50K+</div>
+            <div className="text-[10px] text-slate-500 uppercase font-black tracking-[0.3em] mt-1">Listings</div>
           </div>
 
-          <div className="flex flex-col items-center group">
-            <div className="p-4 bg-violet-500/10 rounded-2xl mb-3 group-hover:bg-violet-500/20 transition-colors">
-              <TrendingUp className="text-violet-500" size={32} />
+          {/* Growth */}
+          <div className="flex flex-col items-center group transition-all hover:-translate-y-1">
+            <div className="p-4 bg-violet-500 rounded-2xl mb-4 shadow-lg shadow-violet-200 text-white">
+              <TrendingUp size={32} />
             </div>
-            <div className="text-4xl font-black text-white tracking-tighter">24/7</div>
-            <div className="text-[10px] text-violet-400 uppercase font-black tracking-[0.2em] mt-1">Growth</div>
+            <div className="text-4xl font-black text-slate-800 tracking-tighter group-hover:text-violet-600 transition-colors">24/7</div>
+            <div className="text-[10px] text-slate-500 uppercase font-black tracking-[0.3em] mt-1">Growth</div>
           </div>
 
-          <div className="flex flex-col items-center group">
-            <div className="p-4 bg-indigo-500/10 rounded-2xl mb-3 group-hover:bg-indigo-500/20 transition-colors">
-              <LinkIcon className="text-indigo-500" size={32} />
+          {/* Connections */}
+          <div className="flex flex-col items-center group transition-all hover:-translate-y-1">
+            <div className="p-4 bg-indigo-500 rounded-2xl mb-4 shadow-lg shadow-indigo-200 text-white">
+              <LinkIcon size={32} />
             </div>
-            <div className="text-4xl font-black text-white tracking-tighter">Global</div>
-            <div className="text-[10px] text-indigo-400 uppercase font-black tracking-[0.2em] mt-1">Connections</div>
+            <div className="text-4xl font-black text-slate-800 tracking-tighter group-hover:text-indigo-600 transition-colors">Global</div>
+            <div className="text-[10px] text-slate-500 uppercase font-black tracking-[0.3em] mt-1">Connections</div>
           </div>
         </div>
       </div>
 
-      {/* 🧩 3. INTERACTIVE SEARCH BAR - ✅ UPDATED FOR VISIBILITY */}
-      <div className="max-w-5xl mx-auto px-6 -mt-24 relative z-30 mb-16">
-        <div className="glass-card p-5 rounded-[2.5rem] flex flex-col md:flex-row gap-4 items-center border border-white/20 shadow-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl">
-          <div className="flex-1 flex items-center gap-4 px-6 w-full">
-            <div className="p-2 bg-blue-500/10 rounded-lg shadow-sm shadow-blue-500/20">
-                <Search className="text-blue-600" size={22} />
-            </div>
+      {/* 🧩 3. INTERACTIVE SEARCH BAR - ✅ HIGH CONTRAST UPDATE */}
+      <div className="max-w-6xl mx-auto px-6 -mt-24 relative z-30 mb-16">
+        <div className="glass-card p-6 rounded-[2.5rem] flex flex-col md:flex-row gap-4 items-center border border-white shadow-[0_20px_50px_rgba(0,0,0,0.1)] bg-white">
+          <div className="flex-1 flex items-center gap-4 px-6 w-full border-r border-slate-100">
+            <Search className="text-blue-600" size={24} />
             <input 
-              className="bg-transparent border-none outline-none w-full text-lg placeholder:text-slate-500 text-slate-900 dark:text-white font-bold tracking-tight"
+              className="bg-transparent border-none outline-none w-full text-xl placeholder:text-slate-400 text-slate-900 font-bold"
               placeholder="What are you looking for?"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -161,23 +163,19 @@ export const Home = () => {
           </div>
           
           <div className="flex flex-wrap md:flex-nowrap gap-3 w-full md:w-auto">
-            <div className="relative flex-1 md:w-40">
-              <input 
-                placeholder="City" 
-                className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-3.5 text-sm outline-none focus:border-blue-500 text-slate-900 dark:text-white font-black uppercase tracking-widest placeholder:text-slate-400 transition-all" 
-                onChange={(e) => setLocation({...location, city: e.target.value})} 
-              />
-            </div>
-            <div className="relative flex-1 md:w-40">
-              <input 
-                placeholder="Area" 
-                className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-3.5 text-sm outline-none focus:border-blue-500 text-slate-900 dark:text-white font-black uppercase tracking-widest placeholder:text-slate-400 transition-all" 
-                onChange={(e) => setLocation({...location, area: e.target.value})} 
-              />
-            </div>
+            <input 
+              placeholder="CITY" 
+              className="flex-1 md:w-40 bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-xs outline-none focus:ring-2 ring-blue-500/20 text-slate-900 font-black uppercase tracking-widest placeholder:text-slate-400" 
+              onChange={(e) => setLocation({...location, city: e.target.value})} 
+            />
+            <input 
+              placeholder="AREA" 
+              className="flex-1 md:w-40 bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-xs outline-none focus:ring-2 ring-blue-500/20 text-slate-900 font-black uppercase tracking-widest placeholder:text-slate-400" 
+              onChange={(e) => setLocation({...location, area: e.target.value})} 
+            />
             <button 
               onClick={fetchItems} 
-              className="w-full md:w-auto bg-blue-600 px-10 py-3.5 rounded-2xl font-black hover:bg-blue-700 transition-all uppercase text-xs text-white shadow-xl shadow-blue-600/30 active:scale-95"
+              className="w-full md:w-auto bg-blue-600 px-10 py-4 rounded-2xl font-black hover:bg-blue-700 transition-all uppercase text-xs text-white shadow-xl shadow-blue-600/30 active:scale-95"
             >
               Search
             </button>
