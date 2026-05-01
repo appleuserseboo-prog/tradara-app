@@ -1,5 +1,12 @@
 import React from 'react';
-import { MessageCircle, MapPin, BadgeCheck, ShoppingCart, MessageSquare } from 'lucide-react';
+import { 
+  MessageCircle, 
+  MapPin, 
+  BadgeCheck, 
+  ShoppingCart, 
+  MessageSquare, 
+  Flame 
+} from 'lucide-react';
 import { useCart } from '../context/CartContext';
 
 interface ItemCardProps {
@@ -43,7 +50,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
   return (
     <div className="glass-card group rounded-[2.5rem] overflow-hidden hover:scale-[1.03] transition-all duration-500 hover:border-blue-500/40">
       
-      <div className="relative aspect-[4/5] overflow-hidden bg-slate-900">
+      <div className="relative aspect-[4/5] overflow-hidden bg-slate-900">`
         <img 
           src={getImageUrl(item.images?.[0])} 
           loading="lazy" // ✅ DATA SAVER: Only loads when visible on screen
@@ -72,9 +79,13 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
           )}
         </div>
 
+        {/* ✅ Trending Badge: Updated with Flame icon and styling from image_336.png */}
         <div className="absolute bottom-4 left-4">
-           <div className="backdrop-blur-md bg-black/60 px-3 py-1 rounded-xl border border-white/5 text-[9px] font-bold text-slate-300">
-              🔥 Trending in {item.city}
+           <div className="backdrop-blur-md bg-black/60 px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-1.5">
+              <Flame size={12} className="text-orange-500 fill-orange-500" />
+              <span className="text-[9px] font-black text-white uppercase tracking-wider">
+                Trending in {item.city || 'Worldwide'}
+              </span>
            </div>
         </div>
       </div>
