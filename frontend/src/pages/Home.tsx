@@ -66,9 +66,8 @@ export const Home = () => {
           transition={{ duration: 0.8 }}
           className="space-y-8"
         >
-          {/* ✅ Rocket Icon replacing 🚀 */}
-          <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-black tracking-widest uppercase">
-            <Rocket size={14} /> The Future of Commerce
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600/10 border border-blue-500/30 text-blue-500 text-xs font-black tracking-widest uppercase">
+            <Rocket size={14} className="animate-bounce" /> The Future of Commerce
           </div>
           
           <h1 className="text-6xl md:text-8xl font-black tracking-tighter leading-[0.9]">
@@ -80,7 +79,7 @@ export const Home = () => {
           </p>
           
           <div className="flex gap-4">
-            <button className="px-8 py-5 bg-gradient-to-r from-blue-600 to-violet-600 rounded-2xl font-black text-lg hover:scale-105 transition-all neon-glow-blue flex items-center gap-3 text-white">
+            <button className="px-8 py-5 bg-gradient-to-r from-blue-600 to-violet-600 rounded-2xl font-black text-lg hover:scale-105 transition-all neon-glow-blue flex items-center gap-3 text-white shadow-xl shadow-blue-500/20">
               <Globe2 size={24} /> START SELLING WORLDWIDE
             </button>
           </div>
@@ -109,59 +108,79 @@ export const Home = () => {
         </motion.div>
       </section>
 
-      {/* 🧩 2. SOCIAL PROOF STRIP - ✅ Icons replacing emojis */}
-      <div className="border-y border-white/5 bg-white/5 backdrop-blur-sm py-10 mb-20">
-        <div className="max-w-7xl mx-auto px-6 flex flex-wrap justify-around gap-8 text-center">
-          <div className="flex flex-col items-center gap-2">
-            <div className="flex items-center gap-3">
+      {/* 🧩 2. SOCIAL PROOF STRIP */}
+      <div className="border-y border-white/5 bg-white/5 backdrop-blur-md py-12 mb-20 shadow-inner">
+        <div className="max-w-7xl mx-auto px-6 flex flex-wrap justify-around gap-12">
+          <div className="flex flex-col items-center group">
+            <div className="p-4 bg-blue-500/10 rounded-2xl mb-3 group-hover:bg-blue-500/20 transition-colors">
               <Globe2 className="text-blue-500" size={32} />
-              <div className="text-3xl font-black text-white">190+</div>
             </div>
-            <div className="text-xs text-slate-500 uppercase font-bold tracking-tighter">Countries</div>
+            <div className="text-4xl font-black text-white tracking-tighter">190+</div>
+            <div className="text-[10px] text-blue-400 uppercase font-black tracking-[0.2em] mt-1">Countries</div>
           </div>
 
-          <div className="flex flex-col items-center gap-2">
-            <div className="flex items-center gap-3">
-              <Package className="text-blue-500" size={32} />
-              <div className="text-3xl font-black text-white">50K+</div>
+          <div className="flex flex-col items-center group">
+            <div className="p-4 bg-cyan-500/10 rounded-2xl mb-3 group-hover:bg-cyan-500/20 transition-colors">
+              <Package className="text-cyan-500" size={32} />
             </div>
-            <div className="text-xs text-slate-500 uppercase font-bold tracking-tighter">Listings</div>
+            <div className="text-4xl font-black text-white tracking-tighter">50K+</div>
+            <div className="text-[10px] text-cyan-400 uppercase font-black tracking-[0.2em] mt-1">Listings</div>
           </div>
 
-          <div className="flex flex-col items-center gap-2">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col items-center group">
+            <div className="p-4 bg-violet-500/10 rounded-2xl mb-3 group-hover:bg-violet-500/20 transition-colors">
               <TrendingUp className="text-violet-500" size={32} />
-              <div className="text-3xl font-black text-white">24/7</div>
             </div>
-            <div className="text-xs text-slate-500 uppercase font-bold tracking-tighter">Growth</div>
+            <div className="text-4xl font-black text-white tracking-tighter">24/7</div>
+            <div className="text-[10px] text-violet-400 uppercase font-black tracking-[0.2em] mt-1">Growth</div>
           </div>
 
-          <div className="flex flex-col items-center gap-2">
-            <div className="flex items-center gap-3">
-              <LinkIcon className="text-blue-400" size={32} />
-              <div className="text-3xl font-black text-white">Global</div>
+          <div className="flex flex-col items-center group">
+            <div className="p-4 bg-indigo-500/10 rounded-2xl mb-3 group-hover:bg-indigo-500/20 transition-colors">
+              <LinkIcon className="text-indigo-500" size={32} />
             </div>
-            <div className="text-xs text-slate-500 uppercase font-bold tracking-tighter">Connections</div>
+            <div className="text-4xl font-black text-white tracking-tighter">Global</div>
+            <div className="text-[10px] text-indigo-400 uppercase font-black tracking-[0.2em] mt-1">Connections</div>
           </div>
         </div>
       </div>
 
-      {/* 🧩 3. INTERACTIVE SEARCH BAR */}
-      <div className="max-w-5xl mx-auto px-6 -mt-20 relative z-30 mb-16">
-        <div className="glass-card p-4 rounded-[2.5rem] flex flex-col md:flex-row gap-4 items-center border border-white/10">
-          <div className="flex-1 flex items-center gap-4 px-6">
-            <Search className="text-blue-500" />
+      {/* 🧩 3. INTERACTIVE SEARCH BAR - ✅ UPDATED FOR VISIBILITY */}
+      <div className="max-w-5xl mx-auto px-6 -mt-24 relative z-30 mb-16">
+        <div className="glass-card p-5 rounded-[2.5rem] flex flex-col md:flex-row gap-4 items-center border border-white/20 shadow-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl">
+          <div className="flex-1 flex items-center gap-4 px-6 w-full">
+            <div className="p-2 bg-blue-500/10 rounded-lg shadow-sm shadow-blue-500/20">
+                <Search className="text-blue-600" size={22} />
+            </div>
             <input 
-              className="bg-transparent border-none outline-none w-full text-lg placeholder:text-slate-600 text-white"
-              placeholder="Search items worldwide..."
+              className="bg-transparent border-none outline-none w-full text-lg placeholder:text-slate-500 text-slate-900 dark:text-white font-bold tracking-tight"
+              placeholder="What are you looking for?"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <div className="flex flex-wrap gap-2 w-full md:w-auto">
-            <input placeholder="City" className="flex-1 md:w-32 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-500 text-white" onChange={(e) => setLocation({...location, city: e.target.value})} />
-            <input placeholder="Area" className="flex-1 md:w-32 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-500 text-white" onChange={(e) => setLocation({...location, area: e.target.value})} />
-            <button onClick={fetchItems} className="bg-blue-600 px-8 py-3 rounded-xl font-black hover:bg-blue-700 transition-all uppercase text-xs text-white">Search</button>
+          
+          <div className="flex flex-wrap md:flex-nowrap gap-3 w-full md:w-auto">
+            <div className="relative flex-1 md:w-40">
+              <input 
+                placeholder="City" 
+                className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-3.5 text-sm outline-none focus:border-blue-500 text-slate-900 dark:text-white font-black uppercase tracking-widest placeholder:text-slate-400 transition-all" 
+                onChange={(e) => setLocation({...location, city: e.target.value})} 
+              />
+            </div>
+            <div className="relative flex-1 md:w-40">
+              <input 
+                placeholder="Area" 
+                className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-5 py-3.5 text-sm outline-none focus:border-blue-500 text-slate-900 dark:text-white font-black uppercase tracking-widest placeholder:text-slate-400 transition-all" 
+                onChange={(e) => setLocation({...location, area: e.target.value})} 
+              />
+            </div>
+            <button 
+              onClick={fetchItems} 
+              className="w-full md:w-auto bg-blue-600 px-10 py-3.5 rounded-2xl font-black hover:bg-blue-700 transition-all uppercase text-xs text-white shadow-xl shadow-blue-600/30 active:scale-95"
+            >
+              Search
+            </button>
           </div>
         </div>
       </div>
@@ -176,7 +195,7 @@ export const Home = () => {
               className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
                 category === cat 
                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20 scale-105' 
-                : 'bg-white/5 text-slate-400 hover:text-white border border-white/5'
+                : 'bg-white/5 text-slate-400 hover:text-white border border-white/5 hover:bg-white/10'
               }`}
             >
               {cat}
