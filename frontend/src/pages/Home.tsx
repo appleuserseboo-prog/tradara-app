@@ -9,7 +9,7 @@ export const Home = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [location, setLocation] = useState({ city: '', area: '' });
   const [category, setCategory] = useState('All');
-  const [loading, setLoading] = useState(true); // ✅ Initialized to true
+  const [loading, setLoading] = useState(false);
 
   const categories = ["All", "Electronics", "Textbooks", "Fashion", "Furniture", "Services", "Food", "others"];
 
@@ -46,16 +46,6 @@ export const Home = () => {
     });
   }, [items, searchTerm]);
 
-  // ✅ LOADING STATE: Prevents blank screen on Render cold-starts
-  if (loading && items.length === 0) return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
-      <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-      <p className="text-slate-500 font-bold animate-pulse uppercase tracking-widest text-xs">
-        Waking up the Global Engine...
-      </p>
-    </div>
-  );
-
   return (
     <div className="min-h-screen">
       {/* 🧩 1. HERO SECTION */}
@@ -89,6 +79,7 @@ export const Home = () => {
           </p>
         </motion.div>
 
+        {/* Hero Visual Mockup */}
         <motion.div 
            initial={{ opacity: 0, scale: 0.9 }}
            animate={{ opacity: 1, scale: 1 }}
@@ -107,6 +98,7 @@ export const Home = () => {
         </motion.div>
       </section>
 
+      {/* 🧩 2. SOCIAL PROOF STRIP */}
       <div className="border-y border-white/5 bg-white/5 backdrop-blur-sm py-10 mb-20">
         <div className="max-w-7xl mx-auto px-6 flex flex-wrap justify-around gap-8 text-center">
           <div><div className="text-3xl font-black">🌍 190+</div><div className="text-xs text-slate-500 uppercase font-bold tracking-tighter">Countries</div></div>
@@ -116,6 +108,7 @@ export const Home = () => {
         </div>
       </div>
 
+      {/* 🧩 3. INTERACTIVE SEARCH BAR */}
       <div className="max-w-5xl mx-auto px-6 -mt-20 relative z-30 mb-16">
         <div className="glass-card p-4 rounded-[2.5rem] flex flex-col md:flex-row gap-4 items-center">
           <div className="flex-1 flex items-center gap-4 px-6">
@@ -130,11 +123,12 @@ export const Home = () => {
           <div className="flex flex-wrap gap-2 w-full md:w-auto">
             <input placeholder="City" className="flex-1 md:w-32 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-500" onChange={(e) => setLocation({...location, city: e.target.value})} />
             <input placeholder="Area" className="flex-1 md:w-32 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-500" onChange={(e) => setLocation({...location, area: e.target.value})} />
-            <button onClick={fetchItems} className="bg-blue-600 px-8 py-3 rounded-xl font-black hover:bg-blue-700 transition-all uppercase text-xs">Search</button>
+            <button className="bg-blue-600 px-8 py-3 rounded-xl font-black hover:bg-blue-700 transition-all uppercase text-xs">Search</button>
           </div>
         </div>
       </div>
 
+      {/* 🧩 4. CATEGORIES */}
       <div className="max-w-7xl mx-auto px-6 mb-12 flex items-center gap-3 overflow-x-auto no-scrollbar pb-2">
           <Filter size={18} className="text-slate-500 flex-shrink-0" />
           {categories.map((cat) => (
@@ -152,17 +146,22 @@ export const Home = () => {
           ))}
       </div>
 
+      {/* 🧩 5. THE MAIN GRID (with Framer Motion) */}
       <div className="max-w-7xl mx-auto px-6 pb-32">
-        <motion.div 
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8"
-        >
-          {filteredItems.map((item: any) => (
-            <ItemCard key={item.id} item={item} />
-          ))}
-        </motion.div>
+        {loading && items.length === 0 ? (
+          <div className="flex justify-center py-20"><Loader2 className="animate-spin text-blue-600" size={48} /></div>
+        ) : (
+          <motion.div 
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8"
+          >
+            {filteredItems.map((item: any) => (
+              <ItemCard key={item.id} item={item} />
+            ))}
+          </motion.div>
+        )}
       </div>
     </div>
   );
