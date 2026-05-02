@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import api from '../services/api';
 import { 
   Search, 
@@ -11,8 +11,14 @@ import {
   Globe2, 
   Link as LinkIcon 
 } from 'lucide-react';
-import { ItemCard } from './../components/ItemCard';
 import { motion } from 'framer-motion';
+
+/** 
+ * PERFORMANCE: Lazy load the ItemCard component.
+ * This ensures the browser only downloads the code for the cards when needed,
+ * significantly reducing initial data consumption.
+ */
+const ItemCard = lazy(() => import('./../components/ItemCard').then(module => ({ default: module.ItemCard })));
 
 export const Home = () => {
   const [items, setItems] = useState([]);
@@ -42,6 +48,7 @@ export const Home = () => {
   };
 
   useEffect(() => {
+    // Debouncing the search to avoid unnecessary API calls and data usage
     const delay = setTimeout(fetchItems, 400);
     return () => clearTimeout(delay);
   }, [searchTerm, location.city, location.area, category]);
@@ -58,11 +65,12 @@ export const Home = () => {
 
   return (
     <div className="min-h-screen">
-      {/* 🧩 1. HERO SECTION */}
+      {/* 🧩 1. HERO SECTION - High Contrast & Neon Theme */}
       <section className="max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center py-20">
         <motion.div 
           initial={{ opacity: 0, x: -30 }}
-          animate={{ opacity: 1, x: 0 }}
+          whileInView={{ opacity: 1, x: 0 }}
+          viewport={{ once: true }}
           transition={{ duration: 0.8 }}
           className="space-y-8"
         >
@@ -90,9 +98,11 @@ export const Home = () => {
           </p>
         </motion.div>
 
+        {/* Hero Visual */}
         <motion.div 
            initial={{ opacity: 0, scale: 0.9 }}
-           animate={{ opacity: 1, scale: 1 }}
+           whileInView={{ opacity: 1, scale: 1 }}
+           viewport={{ once: true }}
            className="relative flex justify-center"
         >
           <div className="absolute inset-0 bg-blue-600/20 blur-[120px] rounded-full animate-glow" />
@@ -108,7 +118,7 @@ export const Home = () => {
         </motion.div>
       </section>
 
-      {/* 🧩 2. SOCIAL PROOF STRIP - ✅ LEGENDARY VISIBILITY UPDATE */}
+      {/* 🧩 2. SOCIAL PROOF STRIP - Optimized Visibility */}
       <div className="border-y border-slate-200 bg-slate-50/50 backdrop-blur-md py-14 mb-20">
         <div className="max-w-7xl mx-auto px-6 flex flex-wrap justify-around gap-12">
           {/* Countries */}
@@ -149,7 +159,7 @@ export const Home = () => {
         </div>
       </div>
 
-      {/* 🧩 3. INTERACTIVE SEARCH BAR - ✅ HIGH CONTRAST UPDATE */}
+      {/* 🧩 3. INTERACTIVE SEARCH BAR - High Contrast for Clarity */}
       <div className="max-w-6xl mx-auto px-6 -mt-24 relative z-30 mb-16">
         <div className="glass-card p-6 rounded-[2.5rem] flex flex-col md:flex-row gap-4 items-center border border-white shadow-[0_20px_50px_rgba(0,0,0,0.1)] bg-white">
           <div className="flex-1 flex items-center gap-4 px-6 w-full border-r border-slate-100">
@@ -201,21 +211,31 @@ export const Home = () => {
           ))}
       </div>
 
-      {/* 🧩 5. THE MAIN GRID */}
+      {/* 🧩 5. THE MAIN GRID - Lazy Loading & Animation Viewport */}
       <div className="max-w-7xl mx-auto px-6 pb-32">
         {loading && items.length === 0 ? (
           <div className="flex justify-center py-20"><Loader2 className="animate-spin text-blue-600" size={48} /></div>
         ) : (
-          <motion.div 
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8"
-          >
-            {filteredItems.map((item: any) => (
-              <ItemCard key={item.id} item={item} />
-            ))}
-          </motion.div>
+          /* Suspense handles the loading state of lazy-loaded components */
+          <Suspense fallback={
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+              {Array(8).fill(0).map((_, i) => (
+                <div key={i} className="h-64 bg-slate-100 rounded-3xl animate-pulse" />
+              ))}
+            </div>
+          }>
+            <motion.div 
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.6 }}
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8"
+            >
+              {filteredItems.map((item: any) => (
+                <ItemCard key={item.id} item={item} />
+              ))}
+            </motion.div>
+          </Suspense>
         )}
       </div>
     </div>
