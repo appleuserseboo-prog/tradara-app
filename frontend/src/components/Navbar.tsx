@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { 
   LogOut, 
@@ -26,8 +26,7 @@ export const Navbar: React.FC = () => {
   };
 
   const toggleDarkMode = () => {
-    const nextMode = !isDarkMode;
-    setIsDarkMode(nextMode);
+    setIsDarkMode(!isDarkMode);
     document.documentElement.classList.toggle('dark');
   };
 
@@ -49,7 +48,7 @@ export const Navbar: React.FC = () => {
           <span className="text-[10px] font-black uppercase tracking-tighter">Night</span>
         </button>
 
-        {/* 3. LOGIN / MENU (JOIN REMOVED) */}
+        {/* 3. LOGIN / DASHBOARD (JOIN IS REMOVED HERE) */}
         {isLoggedIn ? (
           <div className="flex items-center gap-8">
             <Link to="/dashboard" className={`flex flex-col items-center gap-1 ${isActive('/dashboard') ? 'text-blue-600' : 'text-slate-500'}`}>
@@ -63,7 +62,7 @@ export const Navbar: React.FC = () => {
           </div>
         ) : (
           <Link to="/login" className={`flex flex-col items-center gap-1 ${isActive('/login') ? 'text-blue-600' : 'text-slate-500'}`}>
-             <div className="h-6 w-6 bg-slate-200 rounded-full mb-1 flex items-center justify-center">
+             <div className="h-6 w-6 bg-slate-200 dark:bg-slate-800 rounded-full mb-1 flex items-center justify-center">
                 <span className="text-[8px]">👤</span>
              </div>
             <span className="text-[10px] font-black uppercase tracking-widest">Login</span>
