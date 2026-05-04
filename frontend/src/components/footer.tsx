@@ -16,21 +16,21 @@ export const Footer: React.FC = () => {
         {/* SOCIAL LINKS - TEXT BOXES WITH ACTUAL LINKS */}
         <div className="flex justify-center gap-6 mb-12 flex-wrap">
           {/* TIKTOK */}
-          <a href="https://www.tiktok.com/@tradara" target="_blank" rel="noreferrer" 
+          <a href="https://www.tiktok.com/@tradara_marketplace?_r=1&_t=ZS-965LXfLfcaF" target="_blank" rel="noreferrer" 
              className="w-32 h-32 bg-white dark:bg-slate-900 rounded-[2rem] flex flex-col items-center justify-center border border-slate-200 dark:border-white/10 hover:border-blue-500 transition-all shadow-xl hover:-translate-y-1">
             <span className="text-blue-600 font-black text-xs uppercase tracking-tighter">TikTok</span>
             <span className="text-slate-400 text-[10px] mt-1 font-bold">@Tradara</span>
           </a>
           
           {/* INSTAGRAM */}
-          <a href="https://www.instagram.com/tradara" target="_blank" rel="noreferrer" 
+          <a href="https://www.instagram.com/tradara_marketplace?igsh=MXJhNHBocjZkZmJt&utm_source=qr" target="_blank" rel="noreferrer" 
              className="w-32 h-32 bg-white dark:bg-slate-900 rounded-[2rem] flex flex-col items-center justify-center border border-slate-200 dark:border-white/10 hover:border-pink-500 transition-all shadow-xl hover:-translate-y-1">
             <span className="text-pink-600 font-black text-xs uppercase tracking-tighter">Instagram</span>
             <span className="text-slate-400 text-[10px] mt-1 font-bold">@Tradara</span>
           </a>
 
           {/* FACEBOOK */}
-          <a href="https://www.facebook.com/tradara" target="_blank" rel="noreferrer" 
+          <a href="https://www.facebook.com/share/17ev2yEU7S/?mibextid=wwXIfr" target="_blank" rel="noreferrer" 
              className="w-32 h-32 bg-white dark:bg-slate-900 rounded-[2rem] flex flex-col items-center justify-center border border-slate-200 dark:border-white/10 hover:border-indigo-500 transition-all shadow-xl hover:-translate-y-1">
             <span className="text-indigo-600 font-black text-xs uppercase tracking-tighter">Facebook</span>
             <span className="text-slate-400 text-[10px] mt-1 font-bold">@Tradara</span>
