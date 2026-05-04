@@ -3,7 +3,6 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { 
   LogOut, 
   LayoutDashboard, 
-  PlusCircle, 
   Moon, 
   Sun,
   ShoppingBag,
@@ -31,7 +30,6 @@ export const Navbar: React.FC = () => {
     document.documentElement.classList.toggle('dark');
   };
 
-  // Helper to check if a link is active
   const isActive = (path: string) => location.pathname === path;
 
   return (
@@ -39,12 +37,17 @@ export const Navbar: React.FC = () => {
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         
         {/* 1. HOME ICON */}
-        <Link to="/" className={`flex flex-col items-center gap-1 transition-colors ${isActive('/') ? 'text-blue-600' : 'text-slate-500 hover:text-blue-500'}`}>
+        <Link 
+          to="/" 
+          className={`flex flex-col items-center gap-1 transition-colors ${
+            isActive('/') ? 'text-blue-600' : 'text-slate-500 hover:text-blue-500'
+          }`}
+        >
           <HomeIcon size={24} />
           <span className="text-[10px] font-black uppercase tracking-tighter">Home</span>
         </Link>
 
-        {/* 2. NIGHT MODE TOGGLE */}
+        {/* 2. NIGHT MODE */}
         <button 
           onClick={toggleDarkMode} 
           className="flex flex-col items-center gap-1 text-slate-500 hover:text-blue-500 transition-colors"
@@ -53,26 +56,44 @@ export const Navbar: React.FC = () => {
           <span className="text-[10px] font-black uppercase tracking-tighter">Night</span>
         </button>
 
-        {/* 3. LOGIN/LOGOUT (Spacing balanced) */}
+        {/* 3. LOGIN / MENU (JOIN BUTTON REMOVED) */}
         {isLoggedIn ? (
-          <div className="flex items-center gap-6">
-            <Link to="/dashboard" className={`flex flex-col items-center gap-1 ${isActive('/dashboard') ? 'text-blue-600' : 'text-slate-500'}`}>
+          <div className="flex items-center gap-8">
+            <Link 
+              to="/dashboard" 
+              className={`flex flex-col items-center gap-1 ${
+                isActive('/dashboard') ? 'text-blue-600' : 'text-slate-500'
+              }`}
+            >
               <LayoutDashboard size={24} />
               <span className="text-[10px] font-black uppercase tracking-tighter">Menu</span>
             </Link>
-            <button onClick={handleLogout} className="flex flex-col items-center gap-1 text-red-500">
+            <button 
+              onClick={handleLogout} 
+              className="flex flex-col items-center gap-1 text-red-500"
+            >
               <LogOut size={24} />
               <span className="text-[10px] font-black uppercase tracking-tighter">Exit</span>
             </button>
           </div>
         ) : (
-          <Link to="/login" className={`flex flex-col items-center gap-1 ${isActive('/login') ? 'text-blue-600' : 'text-slate-500'}`}>
+          <Link 
+            to="/login" 
+            className={`flex flex-col items-center gap-1 ${
+              isActive('/login') ? 'text-blue-600' : 'text-slate-500'
+            }`}
+          >
             <span className="text-sm font-black uppercase tracking-widest">Login</span>
           </Link>
         )}
 
         {/* 4. CART */}
-        <Link to="/cart" className={`relative flex flex-col items-center gap-1 transition-colors ${isActive('/cart') ? 'text-blue-600' : 'text-slate-500'}`}>
+        <Link 
+          to="/cart" 
+          className={`relative flex flex-col items-center gap-1 transition-colors ${
+            isActive('/cart') ? 'text-blue-600' : 'text-slate-500'
+          }`}
+        >
           <ShoppingBag size={24} />
           <span className="text-[10px] font-black uppercase tracking-tighter">Cart</span>
           {cart.length > 0 && (
