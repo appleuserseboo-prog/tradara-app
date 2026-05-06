@@ -1,8 +1,8 @@
 import React, { useEffect, useState, createContext } from "react";
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from "react-router-dom";
 import { 
-  PlusCircle, Search, LayoutDashboard, 
-  LogOut, Moon, Sun, ShoppingBag, HomeIcon
+  PlusCircle, LayoutDashboard, 
+  LogOut, Moon, Sun, ShoppingBag, Home as HomeIcon, User
 } from "lucide-react";
 
 import { Home } from "./pages/Home";
@@ -60,32 +60,33 @@ const AppContent: React.FC = () => {
 
             {token ? (
               <>
-                {/* 3. SELL */}
+                {/* 3. SELL (Logged In) */}
                 <Link to="/add-product" className="flex flex-col items-center justify-center min-w-[50px] text-blue-600">
                   <PlusCircle className="w-5 h-5" />
                   <span className="text-[10px] font-bold mt-0.5 uppercase">Sell</span>
                 </Link>
                 
-                {/* 4. DASHBOARD */}
+                {/* 4. DASHBOARD (Logged In) */}
                 <Link to="/dashboard" className="flex flex-col items-center justify-center min-w-[50px]">
                   <LayoutDashboard className="w-5 h-5" />
                   <span className="text-[10px] font-medium mt-0.5">Menu</span>
                 </Link>
 
-                {/* 5. EXIT */}
+                {/* 5. EXIT (Logged In) */}
                 <button onClick={handleLogout} className="flex flex-col items-center justify-center min-w-[50px] text-red-500">
                   <LogOut className="w-5 h-5" />
                   <span className="text-[10px] font-medium mt-0.5">Exit</span>
                 </button>
               </>
             ) : (
-              <div className="flex gap-2 items-center">
-                <Link to="/login" className="text-xs font-bold uppercase">Login</Link>
-                <Link to="/register" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-[10px] font-black uppercase shadow-md">Join</Link>
-              </div>
+              /* 3. LOGIN ONLY (Logged Out) - JOIN REMOVED PERMANENTLY */
+              <Link to="/login" className="flex flex-col items-center justify-center min-w-[50px]">
+                <User className={`w-5 h-5 ${isDarkMode ? 'text-white' : 'text-slate-700'}`} />
+                <span className="text-[10px] font-bold uppercase mt-0.5">Login</span>
+              </Link>
             )}
             
-            {/* 6. CART */}
+            {/* 4. CART */}
             <Link to="/cart" className="relative flex flex-col items-center justify-center min-w-[50px]">
               <ShoppingBag className={`w-5 h-5 ${isDarkMode ? 'text-white' : 'text-slate-700'}`} />
               <span className="text-[10px] font-medium mt-0.5">Cart</span>
