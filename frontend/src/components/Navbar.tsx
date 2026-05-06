@@ -38,19 +38,19 @@ export const Navbar: React.FC = () => {
     <nav className="fixed top-0 w-full z-50 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md border-b border-slate-100 dark:border-white/5 px-4 sm:px-6 py-3">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         
-        {/* 1. HOME ICON */}
+        {/* 1. HOME */}
         <Link to="/" className={`flex flex-col items-center gap-1 transition-all ${isActive('/') ? 'text-blue-600 scale-110' : 'text-slate-500 hover:text-blue-500'}`}>
           <HomeIcon size={22} strokeWidth={isActive('/') ? 3 : 2} />
           <span className="text-[10px] font-black uppercase tracking-tighter">Home</span>
         </Link>
 
-        {/* 2. NIGHT MODE TOGGLE */}
+        {/* 2. NIGHT MODE */}
         <button onClick={toggleDarkMode} className="flex flex-col items-center gap-1 text-slate-500 hover:text-blue-500 transition-colors">
           {isDarkMode ? <Sun size={22} className="text-yellow-400" /> : <Moon size={22} />}
           <span className="text-[10px] font-black uppercase tracking-tighter">Night</span>
         </button>
 
-        {/* 3. LOGIN / DASHBOARD (Join Button Removed) */}
+        {/* 3. CENTER ACTIONS (Join Button Removed Permanently) */}
         {isLoggedIn ? (
           <div className="flex items-center gap-6">
             <Link to="/add-product" className={`flex flex-col items-center gap-1 transition-all ${isActive('/add-product') ? 'text-blue-600' : 'text-slate-500'}`}>
@@ -69,7 +69,7 @@ export const Navbar: React.FC = () => {
           </Link>
         )}
 
-        {/* 4. CART ICON */}
+        {/* 4. CART & EXIT */}
         <div className="flex items-center gap-4">
           <Link to="/cart" className={`relative flex flex-col items-center gap-1 transition-all ${isActive('/cart') ? 'text-blue-600 scale-110' : 'text-slate-500'}`}>
             <ShoppingBag size={22} strokeWidth={isActive('/cart') ? 3 : 2} />
@@ -82,7 +82,7 @@ export const Navbar: React.FC = () => {
           </Link>
 
           {isLoggedIn && (
-            <button onClick={handleLogout} className="flex flex-col items-center gap-1 text-red-500">
+            <button onClick={handleLogout} className="flex flex-col items-center gap-1 text-red-500 ml-2">
               <LogOut size={20} />
               <span className="text-[10px] font-black uppercase tracking-tighter">Exit</span>
             </button>

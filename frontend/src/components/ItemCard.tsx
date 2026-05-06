@@ -19,13 +19,22 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
   const { addToCart } = useCart();
   const navigate = useNavigate();
   
-  // 1. SPA NAVIGATION: Prevent reload and navigate instantly
   const handleViewDetails = (e: React.MouseEvent) => {
-    // If the user clicks a button inside the card, don't navigate to the product page
+    // 1. Don't trigger if a button was clicked
     if ((e.target as HTMLElement).closest('button')) return;
     
     e.preventDefault();
-    navigate(`/product/${item.id}`);
+    
+    // 2. Check for both _id (MongoDB) and id
+    const productId = item._id || item.id;
+    
+    if (productId) {
+      navigate(`/product/${productId}`);
+      // 3. Force scroll to top for the new page
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      console.error("Product ID is missing:", item);
+    }
   };
 
   const getImageUrl = (imagePath: string) => {
@@ -39,7 +48,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
   };
 
   const handleContact = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevents navigating to product page when clicking CHAT
+    e.stopPropagation();
     if (onWhatsAppClick) {
       onWhatsAppClick();
       return;
@@ -50,7 +59,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
     let cleanPhone = phone;
     const countryName = String(item.country || "").toLowerCase();
     if ((countryName === 'nigeria' || countryName === '') && phone.startsWith('0')) {
-      cleanPhone = `234${phone.substring(1)}`;
+      cleanPhone =` 234${phone.substring(1)}`;
     } 
 
     const message =` Hello, I saw your "${item.stockName}" on Tradara. Is it still available?`;
@@ -58,7 +67,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
   };
 
   const handleAddToCart = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevents navigating to product page when clicking +CART
+    e.stopPropagation();
     addToCart(item);
   };
 
@@ -67,7 +76,6 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
       onClick={handleViewDetails}
       className="glass-card group rounded-[2.5rem] overflow-hidden hover:scale-[1.03] transition-all duration-500 hover:border-blue-500/40 cursor-pointer flex flex-col h-full"
     >
-      {/* Image Container */}
       <div className="relative aspect-[4/5] overflow-hidden bg-slate-900 shrink-0">
         <img 
           src={getImageUrl(item.images?.[0])} 
@@ -77,7 +85,6 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
           onError={(e) => { e.currentTarget.src = 'https://placehold.co/400x500?text=Image+Not+Found'; }}
         />
         
-        {/* Global Badge */}
         <div className="absolute top-3 left-3 sm:top-4 sm:left-4">
            <div className="backdrop-blur-xl bg-blue-600/20 border border-blue-400/30 px-2 sm:px-3 py-1 rounded-full flex items-center gap-2">
               <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" />
@@ -85,7 +92,6 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
            </div>
         </div>
 
-        {/* Pricing and Negotiable status */}
         <div className="absolute top-3 right-3 sm:top-4 sm:right-4 flex flex-col gap-1 items-end">
           <div className="glass-card px-3 sm:px-4 py-1 sm:py-2 rounded-xl sm:rounded-2xl border-white/20 bg-black/40 backdrop-blur-md">
             <span className="font-black text-white text-sm sm:text-lg">
@@ -99,7 +105,6 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
           )}
         </div>
 
-        {/* Trending Badge */}
         <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4">
            <div className="backdrop-blur-md bg-black/60 px-2 sm:px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-1.5">
               <Flame size={12} className="text-orange-500 fill-orange-500" />
@@ -110,7 +115,6 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
         </div>
       </div>
       
-      {/* 2. LAYOUT FIX: Content Container with improved flex-wrap to prevent clipping */}
       <div className="p-4 sm:p-6 flex flex-col flex-grow gap-3 sm:gap-4">
         <div className="flex flex-wrap justify-between items-center gap-2">
            <span className="text-[9px] sm:text-[10px] font-black text-blue-500 uppercase tracking-tighter bg-blue-500/10 px-2 sm:px-3 py-1 rounded-full">
@@ -119,7 +123,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
            <div className="flex items-center gap-1 text-slate-500 min-w-0">
              <MapPin size={10} className="shrink-0" />
              <span className="text-[9px] sm:text-[10px] font-bold uppercase truncate max-w-[100px]">
-               {item.city}{item.area ?`, ${item.area}` : ''}
+               {item.city}{item.area ? `, ${item.area} `: ''}
              </span>
            </div>
         </div>
@@ -132,7 +136,6 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item, onWhatsAppClick }) => 
           "{item.description}"
         </p>
         
-        {/* Actions - Ensures buttons stay at the bottom */}
         <div className="mt-auto flex flex-col sm:flex-row gap-2 pt-2">
           <button 
             onClick={handleContact}

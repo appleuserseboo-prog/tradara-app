@@ -14,6 +14,7 @@ import { AddItem } from "./components/AddItem";
 import { ForgotPassword } from "./pages/ForgotPassword";
 import { ResetPasswordPage } from "./pages/ResetPassword";
 import { CartProvider, useCart } from "./context/CartContext"; 
+import { ProductDetail } from './pages/ProductDetails'; 
 
 export const AppContext = createContext<any>(null);
 
@@ -108,6 +109,7 @@ const AppContent: React.FC = () => {
             <Route path="/add-product" element={token ? <AddItem /> : <Navigate to="/login" />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="*" element={<Navigate to="/" />} />
+            <Route path="/product/:id" element={<ProductDetail />} />
           </Routes>
         </main>
       </div>
