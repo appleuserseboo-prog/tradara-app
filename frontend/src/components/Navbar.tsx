@@ -32,14 +32,13 @@ export const Navbar: React.FC = () => {
     document.documentElement.classList.toggle('dark');
   };
 
-  // ACTIVE INDICATOR LOGIC
   const isActive = (path: string) => location.pathname === path;
 
   return (
     <nav className="fixed top-0 w-full z-50 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md border-b border-slate-100 dark:border-white/5 px-4 sm:px-6 py-3">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         
-        {/* 1. HOME ICON (With Indicator) */}
+        {/* 1. HOME ICON */}
         <Link to="/" className={`flex flex-col items-center gap-1 transition-all ${isActive('/') ? 'text-blue-600 scale-110' : 'text-slate-500 hover:text-blue-500'}`}>
           <HomeIcon size={22} strokeWidth={isActive('/') ? 3 : 2} />
           <span className="text-[10px] font-black uppercase tracking-tighter">Home</span>
@@ -70,7 +69,7 @@ export const Navbar: React.FC = () => {
           </Link>
         )}
 
-        {/* 4. CART ICON (With Indicator) */}
+        {/* 4. CART ICON */}
         <div className="flex items-center gap-4">
           <Link to="/cart" className={`relative flex flex-col items-center gap-1 transition-all ${isActive('/cart') ? 'text-blue-600 scale-110' : 'text-slate-500'}`}>
             <ShoppingBag size={22} strokeWidth={isActive('/cart') ? 3 : 2} />
@@ -81,7 +80,7 @@ export const Navbar: React.FC = () => {
               </span>
             )}
           </Link>
-``
+
           {isLoggedIn && (
             <button onClick={handleLogout} className="flex flex-col items-center gap-1 text-red-500">
               <LogOut size={20} />

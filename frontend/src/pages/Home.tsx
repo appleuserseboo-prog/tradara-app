@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { Search, Loader2, Rocket, Package, TrendingUp, Globe2, Globe } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -8,6 +8,7 @@ import { Footer } from '../components/footer';
 const ItemCard = lazy(() => import('./../components/ItemCard').then(module => ({ default: module.ItemCard })));
 
 export const Home = () => {
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [location, setLocation] = useState({ city: '', area: '' });
@@ -50,8 +51,8 @@ export const Home = () => {
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950 transition-colors">
       
-      {/* 1. HERO SECTION - REMOVED WHITE SPACE (pt-24) */}
-      <section className="max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center pt-24 pb-12">
+      {/* HERO SECTION - REDUCED TOP PADDING TO REMOVE WHITE SPACE */}
+      <section className="max-w-7xl mx-auto px-4 grid lg:grid-cols-2 gap-8 items-center pt-24 pb-10">
         <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8 }} className="space-y-6">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600/10 border border-blue-500/30 text-blue-500 text-xs font-black tracking-widest uppercase">
             <Rocket size={14} className="animate-bounce" /> The Future of Commerce
@@ -63,13 +64,12 @@ export const Home = () => {
             Turn your business into a global brand. The marketplace where unknown names become global icons.
           </p>
           
-          {/* JOIN/REGISTER EMBEDDED HERE */}
           <Link to="/register" className="inline-flex px-8 py-5 bg-gradient-to-r from-blue-600 to-violet-600 rounded-2xl font-black text-lg hover:scale-105 transition-all text-white shadow-xl shadow-blue-500/20 items-center gap-3">
             <Globe2 size={24} /> START SELLING WORLDWIDE
           </Link>
         </motion.div>
 
-        {/* HERO VISUAL (Phone Design) */}
+        {/* HERO VISUAL */}
         <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="relative hidden lg:flex justify-center">
           <div className="absolute inset-0 bg-blue-600/20 blur-[120px] rounded-full animate-pulse" />
           <div className="glass-card w-[280px] h-[560px] rounded-[3rem] border-4 border-slate-200 dark:border-white/10 overflow-hidden relative z-10 p-2 bg-white dark:bg-slate-900">
@@ -84,45 +84,41 @@ export const Home = () => {
         </motion.div>
       </section>
 
-      {/* 2. SOCIAL PROOF STRIP */}
+      {/* SOCIAL PROOF STRIP */}
       <div className="border-y border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-white/5 backdrop-blur-md py-10 mb-16">
         <div className="max-w-7xl mx-auto px-6 flex flex-wrap justify-around gap-8">
-          <div className="flex flex-col items-center"><Globe2 className="text-blue-500 mb-1" size={24}/><span className="text-2xl font-black dark:text-white">190+</span><span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Countries</span></div>
-          <div className="flex flex-col items-center"><Package className="text-cyan-500 mb-1" size={24}/><span className="text-2xl font-black dark:text-white">50K+</span><span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Listings</span></div>
-          <div className="flex flex-col items-center"><TrendingUp className="text-violet-500 mb-1" size={24}/><span className="text-2xl font-black dark:text-white">24/7</span><span className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Growth</span></div>
+          <div className="flex flex-col items-center"><Globe2 className="text-blue-500 mb-1" size={24}/><span className="text-2xl font-black dark:text-white">190+</span><span className="text-[8px] text-slate-500 uppercase font-black">Countries</span></div>
+          <div className="flex flex-col items-center"><Package className="text-cyan-500 mb-1" size={24}/><span className="text-2xl font-black dark:text-white">50K+</span><span className="text-[8px] text-slate-500 uppercase font-black">Listings</span></div>
+          <div className="flex flex-col items-center"><TrendingUp className="text-violet-500 mb-1" size={24}/><span className="text-2xl font-black dark:text-white">24/7</span><span className="text-[8px] text-slate-500 uppercase font-black">Growth</span></div>
         </div>
       </div>
 
-      {/* 3. SEARCH BAR - MOBILE OPTIMIZED (Fixed City/Area fitting) */}
+      {/* SEARCH BAR */}
       <div className="max-w-6xl mx-auto px-4 -mt-16 relative z-30 mb-16">
         <div className="glass-card p-4 md:p-6 rounded-[2rem] flex flex-col gap-4 items-center border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 shadow-2xl">
-          
-          {/* Main Search Input */}
           <div className="flex items-center gap-3 px-4 w-full border-b md:border-b-0 md:border-r border-slate-100 dark:border-white/5 pb-2 md:pb-0">
             <Search className="text-blue-600 shrink-0" size={22} />
             <input 
               className="bg-transparent border-none outline-none w-full text-lg placeholder:text-slate-400 dark:text-white font-bold" 
-              placeholder="Search Items..." 
+              placeholder="Search items..." 
               value={searchTerm} 
               onChange={(e) => setSearchTerm(e.target.value)} 
             />
           </div>
-
-          {/* City, Area, and Search Button Grid for Mobile */}
           <div className="grid grid-cols-2 md:flex gap-2 w-full md:w-auto">
             <input 
               placeholder="CITY" 
-              className="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl px-2 py-3 text-[10px] dark:text-white font-black uppercase text-center focus:border-blue-500 outline-none" 
+              className="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl px-2 py-3 text-[10px] dark:text-white font-black uppercase text-center" 
               onChange={(e) => setLocation({...location, city: e.target.value})} 
             />
             <input 
               placeholder="AREA" 
-              className="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl px-2 py-3 text-[10px] dark:text-white font-black uppercase text-center focus:border-blue-500 outline-none" 
+              className="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl px-2 py-3 text-[10px] dark:text-white font-black uppercase text-center" 
               onChange={(e) => setLocation({...location, area: e.target.value})} 
             />
             <button 
               onClick={fetchItems} 
-              className="col-span-2 md:w-auto bg-blue-600 px-8 py-3 rounded-xl font-black text-white text-xs uppercase shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-colors"
+              className="col-span-2 md:w-auto bg-blue-600 px-8 py-3 rounded-xl font-black text-white text-xs uppercase"
             >
               Search
             </button>
@@ -130,11 +126,15 @@ export const Home = () => {
         </div>
       </div>
 
-      {/* 4. PRODUCT GRID */}
-      <div className="max-w-7xl mx-auto px-6 pb-32">
+      {/* 4-COLUMN GRID (ADAPTIVE FOR MOBILE) */}
+      <div className="max-w-7xl mx-auto px-2 pb-32">
         <Suspense fallback={<div className="flex justify-center py-20"><Loader2 className="animate-spin text-blue-600" size={48} /></div>}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {filteredItems.map((item: any) => <ItemCard key={item.id} item={item} />)}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-6">
+            {filteredItems.map((item: any) => (
+              <div key={item.id} className="cursor-pointer transition-transform hover:scale-[1.02]" onClick={() => navigate(`/product/${item.id}`)}>
+                 <ItemCard item={item} />
+              </div>
+            ))}
           </div>
         </Suspense>
       </div>
