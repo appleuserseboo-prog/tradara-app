@@ -50,7 +50,7 @@ export const Navbar: React.FC = () => {
           <span className="text-[10px] font-black uppercase tracking-tighter">Night</span>
         </button>
 
-        {/* 3. CENTER ACTIONS (Join Button Removed Permanently) */}
+        {/* 3. AUTH LOGIC (LOGIN / SELL-MENU) */}
         {isLoggedIn ? (
           <div className="flex items-center gap-6">
             <Link to="/add-product" className={`flex flex-col items-center gap-1 transition-all ${isActive('/add-product') ? 'text-blue-600' : 'text-slate-500'}`}>
@@ -63,6 +63,7 @@ export const Navbar: React.FC = () => {
             </Link>
           </div>
         ) : (
+          /* ONLY LOGIN SHOWS HERE - JOIN REMOVED */
           <Link to="/login" className={`flex flex-col items-center gap-1 transition-all ${isActive('/login') ? 'text-blue-600 scale-110' : 'text-slate-500'}`}>
             <User size={22} strokeWidth={isActive('/login') ? 3 : 2} />
             <span className="text-[10px] font-black uppercase tracking-tighter">Login</span>
@@ -75,7 +76,7 @@ export const Navbar: React.FC = () => {
             <ShoppingBag size={22} strokeWidth={isActive('/cart') ? 3 : 2} />
             <span className="text-[10px] font-black uppercase tracking-tighter">Cart</span>
             {cart.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-black animate-pulse">
+              <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-black">
                 {cart.length}
               </span>
             )}
