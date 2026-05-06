@@ -8,10 +8,10 @@ import prisma from '../config/db';
 const upload = multer({ dest: 'uploads/' }); 
 const router = Router();
 
-// Dashboard items
+// 1. DASHBOARD ITEMS (Private)
 router.get('/me', authMiddleware, getMyDashboardItems); 
 
-// Search & Public Items
+// 2. SEARCH & PUBLIC ITEMS (Public)
 router.get('/', async (req, res) => {
   try {
     const { search, city, area, category } = req.query;
@@ -19,10 +19,10 @@ router.get('/', async (req, res) => {
     const items = await prisma.item.findMany({
       where: {
         AND: [
-          // 1. Strict Category Filter (Fixes Issue #3)
+          // Strict Category Filter
           category && category !== 'All' ? { category: String(category) } : {},
           
-          // 2. Search Text
+          // Search Text
           search ? {
             OR: [
               { stockName: { contains: String(search), mode: 'insensitive' } },
@@ -30,7 +30,7 @@ router.get('/', async (req, res) => {
             ]
           } : {},
 
-          // 3. Location
+          // Location
           city ? { city: { equals: String(city), mode: 'insensitive' } } : {},
           area ? { area: { equals: String(area), mode: 'insensitive' } } : {}
         ]
@@ -48,9 +48,30 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Protected routes
+// 3. GET SINGLE ITEM BY ID (Public - Fixed "Product Not Found" Issue)
+router.get('/:id', async (req, res) => {
+  try {
+    const item = await prisma.item.findUnique({
+      where: { id: req.params.id },
+      include: { 
+        seller: { select: { name: true, isVerified: true } } 
+      }
+    });
+
+    if (!item) {
+      return res.status(404).json({ message: "Item not found" });
+    }
+
+    res.json(item);
+  } catch (error) {
+    console.error("❌ FETCH SINGLE ITEM ERROR:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+// 4. PROTECTED ROUTES (Requires Login)
 router.post('/', authMiddleware, upload.array('images', 5), createItem);
 router.delete('/:id', authMiddleware, deleteItem);
-router.put('/:id', authMiddleware, updateItem); // ✅ No longer red!
+router.put('/:id', authMiddleware, updateItem); 
 
 export default router;
