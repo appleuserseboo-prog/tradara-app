@@ -1,14 +1,17 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// Standard local configuration for Tradara with Cache Busting
+// Professional configuration for Tradara
 export default defineConfig({
   plugins: [react()],
-  publicDir: 'public', // Ensures manifest and service worker are picked up
+  //  CRITICAL: This ensures absolute paths for all assets
+  base: '/', 
+  publicDir: 'public',
   build: {
-    // 🛠 Forces generation of hashed filenames for Cache Busting
+    outDir: 'dist', // Ensure Vite builds to 'dist'
     rollupOptions: {
       output: {
+        // These hashes help with "Cache Busting" for your updates
         entryFileNames: `assets/[name]-[hash].js`,
         chunkFileNames: `assets/[name]-[hash].js`,
         assetFileNames: `assets/[name]-[hash].[ext]`
