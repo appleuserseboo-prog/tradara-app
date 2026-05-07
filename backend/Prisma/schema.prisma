@@ -30,7 +30,13 @@ model Item {
   city         String   @default("")
   area         String   @default("")
   
-  contactLink  String
+  // --- Updated Contact Logic ---
+  whatsapp     String?  // Optional
+  facebook     String?  // Optional
+  tiktok       String?  // Optional
+  instagram    String?  // Optional
+  // ------------------------------
+
   canBargain   Boolean  @default(true)
   images       String[] 
   
@@ -38,9 +44,7 @@ model Item {
   seller       User     @relation(fields: [userId], references: [id])
   createdAt    DateTime @default(now())
 
-  // --- SCALABILITY INDEXES ---
-  // These allow MongoDB to find products instantly without scanning every document
   @@index([stockName]) 
   @@index([category])
-  @@index([userId]) // Useful for showing "My Items" in the dashboard
+  @@index([userId])
 }

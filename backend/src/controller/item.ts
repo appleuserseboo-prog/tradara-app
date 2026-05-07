@@ -10,7 +10,13 @@ cloudinary.config({
 
 export const createItem = async (req: any, res: Response) => {
   try {
-    const { stockName, price, currency, description, category, city, country, area, contactLink, canBargain } = req.body;
+    // 1. Destructure the new social fields from req.body
+    const { 
+      stockName, price, currency, description, category, 
+      city, country, area, canBargain,
+      whatsapp, facebook, tiktok, instagram 
+    } = req.body;
+
     let imagePaths: string[] = [];
 
     if (req.files && (req.files as any[]).length > 0) {
@@ -21,6 +27,7 @@ export const createItem = async (req: any, res: Response) => {
       imagePaths = uploadResults.map(result => result.secure_url);
     }
 
+    // 2. Create the item with structured social links
     const newItem = await prisma.item.create({
       data: {
         stockName,
@@ -31,7 +38,11 @@ export const createItem = async (req: any, res: Response) => {
         city: city || "",
         country: country || "Nigeria",
         area: area || "",
-        contactLink: contactLink || "",
+        // Save social media fields individually
+        whatsapp: whatsapp || null,
+        facebook: facebook || null,
+        tiktok: tiktok || null,
+        instagram: instagram || null,
         images: imagePaths, 
         canBargain: canBargain === 'true' || canBargain === true, 
         userId: req.user.id 
@@ -51,7 +62,6 @@ export const getItems = async (req: any, res: Response) => {
       where: {
         AND: [
           category && category !== 'All' ? { category: String(category) } : {},
-          // ✅ CASE-INSENSITIVE FUZZY SEARCH FOR ALL FIELDS
           search ? { stockName: { contains: String(search), mode: 'insensitive' } } : {},
           city ? { city: { contains: String(city), mode: 'insensitive' } } : {},
           area ? { area: { contains: String(area), mode: 'insensitive' } } : {},
@@ -70,13 +80,19 @@ export const getItems = async (req: any, res: Response) => {
 
 export const updateItem = async (req: any, res: Response) => {
   try {
-    const { stockName, price, currency, city, area, country, category, description, canBargain } = req.body;
+    const { 
+      stockName, price, currency, city, area, country, 
+      category, description, canBargain,
+      whatsapp, facebook, tiktok, instagram 
+    } = req.body;
     const { id } = req.params;
 
     const updated = await prisma.item.update({
       where: { id, userId: req.user.id },
       data: { 
         stockName, city, area, country, category, description, currency,
+        // Update social links
+        whatsapp, facebook, tiktok, instagram,
         canBargain: canBargain !== undefined ? (canBargain === 'true' || canBargain === true) : undefined,
         price: price ? parseFloat(String(price)) : undefined 
       }

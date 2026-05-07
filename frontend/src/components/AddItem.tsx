@@ -2,7 +2,8 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   PlusCircle, Camera, MapPin, 
-  MessageCircle, X, Globe, Landmark, CircleDollarSign 
+  MessageCircle, X, Globe, Landmark, CircleDollarSign,
+  Instagram, Facebook, Video
 } from 'lucide-react';
 import API from '../services/api';
 
@@ -15,20 +16,23 @@ export const AddItem: React.FC = () => {
   const [formData, setFormData] = useState({
     stockName: '',
     price: '',
-    currency: '₦', // Default currency
+    currency: '₦',
     description: '',
     category: 'Electronics',
     country: 'Nigeria', 
     city: '',    
     area: '',    
-    contactLink: '',
-    canBargain: false 
+    canBargain: false,
+    // Social Links
+    whatsapp: '',
+    facebook: '',
+    tiktok: '',
+    instagram: ''
   });
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
 
-  // ✅ Handles all input types including the new Currency dropdown and Area field
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const val = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
@@ -49,13 +53,25 @@ export const AddItem: React.FC = () => {
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  // PROFESSIONAL VALIDATION: Checks if at least one contact method exists
+  const isContactProvided = () => {
+    return formData.whatsapp.trim() !== '' || 
+           formData.facebook.trim() !== '' || 
+           formData.tiktok.trim() !== '' || 
+           formData.instagram.trim() !== '';
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isContactProvided()) {
+      setError("Please provide at least one contact method (WhatsApp, FB, TikTok, or Instagram)");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     const data = new FormData();
-    // ✅ Matches your Prisma Schema and Backend expectations
     data.append('stockName', formData.stockName);
     data.append('price', formData.price);
     data.append('currency', formData.currency);
@@ -63,9 +79,14 @@ export const AddItem: React.FC = () => {
     data.append('category', formData.category);
     data.append('city', formData.city);
     data.append('country', formData.country);
-    data.append('area', formData.area); // Ensure area is appended
-    data.append('contactLink', formData.contactLink);
+    data.append('area', formData.area);
     data.append('canBargain', String(formData.canBargain));
+    
+    // Append new social fields
+    data.append('whatsapp', formData.whatsapp);
+    data.append('facebook', formData.facebook);
+    data.append('tiktok', formData.tiktok);
+    data.append('instagram', formData.instagram);
 
     selectedFiles.forEach((file) => {
       data.append('images', file); 
@@ -75,7 +96,7 @@ export const AddItem: React.FC = () => {
       await API.post('/items', data);
       navigate('/dashboard');
     } catch (err) {
-      setError("Upload failed. Please check your network or server terminal.");
+      setError("Upload failed. Check your network or server terminal.");
     } finally {
       setLoading(false);
     }
@@ -85,7 +106,6 @@ export const AddItem: React.FC = () => {
     <div className="min-h-screen pt-10 pb-20 px-4 bg-[#F4F7FF] dark:bg-slate-950">
       <div className="max-w-3xl mx-auto">
         
-        {/* HEADER SECTION */}
         <div className="mb-10 text-center">
           <div className="inline-flex p-4 bg-blue-600 rounded-[2rem] text-white shadow-xl mb-4"><Globe size={32} /></div>
           <h1 className="text-4xl font-black tracking-tighter dark:text-white uppercase">Global Listing</h1>
@@ -138,7 +158,6 @@ export const AddItem: React.FC = () => {
               <input name="stockName" value={formData.stockName} required className="w-full bg-slate-50 dark:bg-white/5 rounded-2xl py-4 px-6 mt-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white font-bold" onChange={handleChange} />
             </div>
 
-            {/* Global Currency Dropdown */}
             <div>
               <label className="text-xs font-black uppercase text-slate-400 ml-2">Currency</label>
               <select name="currency" value={formData.currency} className="w-full bg-slate-50 dark:bg-white/5 rounded-2xl py-4 px-6 mt-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white font-bold" onChange={handleChange}>
@@ -169,40 +188,71 @@ export const AddItem: React.FC = () => {
                 <option value="Books">Books</option>
                 <option value="Services">Services</option>
                 <option value="Food">Food</option>
-                <option value="Others">Others</option> {/* ✅ Added "Others" */}
+                <option value="Others">Others</option>
               </select>
             </div>
           </div>
 
-          {/* LOCATION & CONTACT */}
+          {/* MULTI-CONTACT SECTION */}
           <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] shadow-sm space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="text-xs font-black uppercase text-slate-400">Country</label>
-                <input name="country" value={formData.country} required className="w-full bg-slate-50 dark:bg-white/5 rounded-xl py-3 px-4 mt-1 outline-none dark:text-white font-bold" onChange={handleChange} />
-              </div>
-              <div>
-                <label className="text-xs font-black uppercase text-slate-400">City</label>
-                <input name="city" value={formData.city} required placeholder="e.g. Ogbomoso" className="w-full bg-slate-50 dark:bg-white/5 rounded-xl py-3 px-4 mt-1 outline-none dark:text-white font-bold" onChange={handleChange} />
-              </div>
-              <div>
-                <label className="text-xs font-black uppercase text-slate-400">Area</label>
-                <input name="area" value={formData.area} required placeholder="e.g. Under-G" className="w-full bg-slate-50 dark:bg-white/5 rounded-xl py-3 px-4 mt-1 outline-none dark:text-white font-bold" onChange={handleChange} />
-              </div>
-            </div>
+             <h3 className="text-sm font-black uppercase text-blue-600 flex items-center gap-2">
+               <MessageCircle size={18}/> Contact Channels (Provide 1 or more)
+             </h3>
+             
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* WhatsApp */}
+                <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-2xl">
+                  <label className="text-[10px] font-black uppercase text-green-500 flex items-center gap-1">
+                    <MessageCircle size={12}/> WhatsApp
+                  </label>
+                  <input name="whatsapp" value={formData.whatsapp} placeholder="+234..." className="w-full bg-transparent py-2 outline-none dark:text-white font-bold text-sm" onChange={handleChange} />
+                </div>
 
-            <div className="flex items-center gap-4 pt-4 border-t border-slate-100 dark:border-white/5">
-              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl"><MessageCircle size={20}/></div>
-              <div className="flex-1">
-                <label className="text-xs font-black uppercase text-slate-400">WhatsApp Number</label>
-                <input name="contactLink" value={formData.contactLink} required placeholder="+234..." className="w-full bg-transparent border-b border-slate-100 dark:border-white/10 py-2 outline-none focus:border-blue-500 dark:text-white font-bold" onChange={handleChange} />
-              </div>
+                {/* Instagram */}
+                <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-2xl">
+                  <label className="text-[10px] font-black uppercase text-pink-500 flex items-center gap-1">
+                    <Instagram size={12}/> Instagram
+                  </label>
+                  <input name="instagram" value={formData.instagram} placeholder="@username" className="w-full bg-transparent py-2 outline-none dark:text-white font-bold text-sm" onChange={handleChange} />
+                </div>
+
+                {/* Facebook */}
+                <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-2xl">
+                  <label className="text-[10px] font-black uppercase text-blue-500 flex items-center gap-1">
+                    <Facebook size={12}/> Facebook
+                  </label>
+                  <input name="facebook" value={formData.facebook} placeholder="Profile URL" className="w-full bg-transparent py-2 outline-none dark:text-white font-bold text-sm" onChange={handleChange} />
+                </div>
+
+                {/* TikTok */}
+                <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-2xl">
+                  <label className="text-[10px] font-black uppercase text-slate-900 dark:text-white flex items-center gap-1">
+                    <Video size={12}/> TikTok
+                  </label>
+                  <input name="tiktok" value={formData.tiktok} placeholder="TikTok URL" className="w-full bg-transparent py-2 outline-none dark:text-white font-bold text-sm" onChange={handleChange} />
+                </div>
+             </div>
+          </div>
+
+          {/* LOCATION DETAILS */}
+          <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] shadow-sm grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="text-xs font-black uppercase text-slate-400 ml-2">Country</label>
+              <input name="country" value={formData.country} required className="w-full bg-slate-50 dark:bg-white/5 rounded-xl py-3 px-4 mt-1 outline-none dark:text-white font-bold" onChange={handleChange} />
+            </div>
+            <div>
+              <label className="text-xs font-black uppercase text-slate-400 ml-2">City</label>
+              <input name="city" value={formData.city} required placeholder="e.g. Ogbomoso" className="w-full bg-slate-50 dark:bg-white/5 rounded-xl py-3 px-4 mt-1 outline-none dark:text-white font-bold" onChange={handleChange} />
+            </div>
+            <div>
+              <label className="text-xs font-black uppercase text-slate-400 ml-2">Area</label>
+              <input name="area" value={formData.area} required placeholder="e.g. Under-G" className="w-full bg-slate-50 dark:bg-white/5 rounded-xl py-3 px-4 mt-1 outline-none dark:text-white font-bold" onChange={handleChange} />
             </div>
           </div>
 
           {error && <div className="bg-red-500/10 text-red-500 p-4 rounded-2xl font-bold text-center">{error}</div>}
 
-          <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black text-lg shadow-xl hover:bg-blue-700 transition-all active:scale-95">
+          <button type="submit" disabled={loading || !isContactProvided()} className={`w-full py-5 rounded-[2rem] font-black text-lg shadow-xl transition-all active:scale-95 ${isContactProvided() ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
             {loading ? 'SYNCING TO GLOBAL SERVERS...' : 'PUBLISH WORLDWIDE'}
           </button>
         </form>
