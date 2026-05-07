@@ -28,30 +28,6 @@ const AppContent: React.FC = () => {
   const location = useLocation();
   const isActive = (path: string) => location.pathname === path;
 
-  // 1. Automated Version Reload (The Pro Way)
-  useEffect(() => {
-    // Only run this in production
-    if (import.meta.env.PROD) {
-      const checkUpdate = async () => {
-        try {
-          const response = await fetch('/index.html', { method: 'HEAD' });
-          const etag = response.headers.get('ETag');
-          const lastEtag = localStorage.getItem('app-version');
-
-          if (lastEtag && etag !== lastEtag) {
-            localStorage.setItem('app-version', etag || '');
-            window.location.reload();
-          } else {
-            localStorage.setItem('app-version', etag || '');
-          }
-        } catch (err) {
-          console.log("Update check failed", err);
-        }
-      };
-      checkUpdate();
-    }
-  }, []);
-
   const handleAuthSuccess = (newToken: string) => {
     setToken(newToken);
     localStorage.setItem("token", newToken);
@@ -70,17 +46,14 @@ const AppContent: React.FC = () => {
     <AppContext.Provider value={{ token, user, searchQuery, setSearchQuery, isDarkMode }}>
       <div className={`${isDarkMode ? 'dark bg-slate-950 text-white' : 'bg-[#F4F7FF] text-slate-900'} min-h-screen transition-colors duration-500 font-sans`}>
         
-        {/* Dynamic Navigation with Active States */}
         <nav className={`fixed top-0 w-full z-50 border-b ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} backdrop-blur-md`}>
           <div className="max-w-7xl mx-auto px-2 h-16 flex items-center justify-between gap-1">
             
-            {/* 1. HOME */}
             <Link to="/" className={`flex flex-col items-center justify-center min-w-[50px] transition-all duration-300 ${isActive('/') ? 'text-blue-600 scale-110' : 'text-slate-500 hover:text-blue-400'}`}>
               <HomeIcon className="w-5 h-5" strokeWidth={isActive('/') ? 3 : 2} />
               <span className={`text-[10px] uppercase mt-0.5 ${isActive('/') ? 'font-black' : 'font-medium'}`}>Home</span>
             </Link>
 
-            {/* 2. NIGHT MODE */}
             <button onClick={() => setIsDarkMode(!isDarkMode)} className="flex flex-col items-center justify-center min-w-[50px] text-slate-500 hover:text-blue-400 transition-all">
               {isDarkMode ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5" />}
               <span className="text-[10px] font-medium mt-0.5">{isDarkMode ? 'Day' : 'Night'}</span>
@@ -88,33 +61,28 @@ const AppContent: React.FC = () => {
 
             {token ? (
               <>
-                {/* 3. SELL */}
                 <Link to="/add-product" className={`flex flex-col items-center justify-center min-w-[50px] transition-all duration-300 ${isActive('/add-product') ? 'text-blue-600 scale-110' : 'text-slate-500 hover:text-blue-400'}`}>
                   <PlusCircle className="w-5 h-5" strokeWidth={isActive('/add-product') ? 3 : 2} />
                   <span className={`text-[10px] uppercase mt-0.5 ${isActive('/add-product') ? 'font-black' : 'font-medium'}`}>Sell</span>
                 </Link>
                 
-                {/* 4. DASHBOARD / MENU */}
                 <Link to="/dashboard" className={`flex flex-col items-center justify-center min-w-[50px] transition-all duration-300 ${isActive('/dashboard') ? 'text-blue-600 scale-110' : 'text-slate-500 hover:text-blue-400'}`}>
                   <LayoutDashboard className="w-5 h-5" strokeWidth={isActive('/dashboard') ? 3 : 2} />
                   <span className={`text-[10px] uppercase mt-0.5 ${isActive('/dashboard') ? 'font-black' : 'font-medium'}`}>Menu</span>
                 </Link>
 
-                {/* 5. EXIT */}
                 <button onClick={handleLogout} className="flex flex-col items-center justify-center min-w-[50px] text-red-500 hover:text-red-700 transition-all">
                   <LogOut className="w-5 h-5" />
                   <span className="text-[10px] font-medium mt-0.5">Exit</span>
                 </button>
               </>
             ) : (
-              /* 3. LOGIN */
               <Link to="/login" className={`flex flex-col items-center justify-center min-w-[50px] transition-all duration-300 ${isActive('/login') ? 'text-blue-600 scale-110' : 'text-slate-500 hover:text-blue-400'}`}>
                 <User className="w-5 h-5" strokeWidth={isActive('/login') ? 3 : 2} />
                 <span className={`text-[10px] uppercase mt-0.5 ${isActive('/login') ? 'font-black' : 'font-medium'}`}>Login</span>
               </Link>
             )}
             
-            {/* 6. CART */}
             <Link to="/cart" className={`relative flex flex-col items-center justify-center min-w-[50px] transition-all duration-300 ${isActive('/cart') ? 'text-blue-600 scale-110' : 'text-slate-500 hover:text-blue-400'}`}>
               <ShoppingBag className="w-5 h-5" strokeWidth={isActive('/cart') ? 3 : 2} />
               <span className={`text-[10px] uppercase mt-0.5 ${isActive('/cart') ? 'font-black' : 'font-medium'}`}>Cart</span>
