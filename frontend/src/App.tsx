@@ -35,18 +35,18 @@ const AppContent: React.FC = () => {
     navigate("/"); 
   };
 
-  const handleLogout = () => {
-    // 1. Clear all session data
+  
+const handleLogout = () => {
+    // 1. Clear session data
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     setToken(null);
     setUser(null);
     
-    // 2. Redirect to login using window.location.assign 
-    // This forces a clean state but allows Vercel's rewrites to catch it
-    window.location.assign("/login"); 
+    // 2. ONLY use navigate. 
+    // Do NOT use window.location.assign or window.location.href
+    navigate("/login"); 
   };
-
   return (
     <AppContext.Provider value={{ token, user, searchQuery, setSearchQuery, isDarkMode }}>
       <div className={`${isDarkMode ? 'dark bg-slate-950 text-white' : 'bg-[#F4F7FF] text-slate-900'} min-h-screen transition-colors duration-500 font-sans`}>
