@@ -1,5 +1,5 @@
 import React, { useState, createContext } from "react";
-import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { 
   PlusCircle, LayoutDashboard, 
   LogOut, Moon, Sun, ShoppingBag, Home as HomeIcon, User
@@ -26,12 +26,14 @@ const AppContent: React.FC = () => {
   const { cart } = useCart(); 
 
   const location = useLocation();
+  const navigate = useNavigate(); // Added for smoother internal routing
   const isActive = (path: string) => location.pathname === path;
 
   const handleAuthSuccess = (newToken: string) => {
     setToken(newToken);
     localStorage.setItem("token", newToken);
-    window.location.href = "/"; 
+    // Use navigate to go home instead of a full page reload to avoid 404s
+    navigate("/"); 
   };
 
   const handleLogout = () => {
@@ -39,7 +41,9 @@ const AppContent: React.FC = () => {
     localStorage.removeItem("user");
     setToken(null);
     setUser(null);
-    window.location.href = "/login";
+    // Directly setting the pathname ensures the browser hits the /login route 
+    // while the App remains mounted, preventing the Vercel 404.
+    window.location.pathname = "/login"; 
   };
 
   return (
