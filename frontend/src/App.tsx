@@ -26,24 +26,25 @@ const AppContent: React.FC = () => {
   const { cart } = useCart(); 
 
   const location = useLocation();
-  const navigate = useNavigate(); // Added for smoother internal routing
+  const navigate = useNavigate(); 
   const isActive = (path: string) => location.pathname === path;
 
   const handleAuthSuccess = (newToken: string) => {
     setToken(newToken);
     localStorage.setItem("token", newToken);
-    // Use navigate to go home instead of a full page reload to avoid 404s
     navigate("/"); 
   };
 
   const handleLogout = () => {
+    // 1. Clear all session data
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     setToken(null);
     setUser(null);
-    // Directly setting the pathname ensures the browser hits the /login route 
-    // while the App remains mounted, preventing the Vercel 404.
-    window.location.pathname = "/login"; 
+    
+    // 2. Redirect to login using window.location.assign 
+    // This forces a clean state but allows Vercel's rewrites to catch it
+    window.location.assign("/login"); 
   };
 
   return (
