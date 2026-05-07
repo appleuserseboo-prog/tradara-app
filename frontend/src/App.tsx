@@ -31,7 +31,7 @@ const AppContent: React.FC = () => {
   // 1. Automated Version Reload (The Pro Way)
   useEffect(() => {
     // Only run this in production
-    if (process.env.NODE_ENV === 'production') {
+    if (import.meta.env.PROD) {
       const checkUpdate = async () => {
         try {
           const response = await fetch('/index.html', { method: 'HEAD' });
