@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  MessageCircle, MapPin, BadgeCheck, ShoppingCart, 
+  MessageCircle, MapPin, ShoppingCart, 
   MessageSquare, Instagram, Facebook, Video, X
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
@@ -17,7 +17,8 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
   
   const handleViewDetails = (e: React.MouseEvent) => {
     // If we clicked a button or the modal, don't trigger the detail view
-    if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('.modal-content')) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('.modal-content')) return;
     
     e.preventDefault();
     const productId = item._id || item.id;
@@ -47,6 +48,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
     switch(platform) {
       case 'whatsapp':
         let phone = value.replace(/\D/g, '');
+        // If it starts with 0 (Nigerian format), convert to 234
         if (phone.startsWith('0')) phone = `234${phone.substring(1)}`;
         url = `https://wa.me/${phone}?text=${message}`;
         break;
@@ -66,7 +68,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
   const handleChatNow = (e: React.MouseEvent) => {
     e.stopPropagation();
     
-    // Logic for Direct Redirect vs Pop-up
+    // Filter to find how many valid handles exist
     const channels = [
       { id: 'whatsapp', value: item.whatsapp },
       { id: 'instagram', value: item.instagram },
@@ -75,11 +77,14 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
     ].filter(c => c.value && c.value.trim() !== "");
 
     if (channels.length === 1) {
-      // Direct redirect for old items/single handles
+      // IF ONLY ONE (Old items): Go directly to that handle
       openLink(channels[0].id, channels[0].value);
     } else if (channels.length > 1) {
-      // Show selection modal
+      // IF MULTIPLE: Show the modal
       setShowContactModal(true);
+    } else {
+      // Fallback for safety
+      if (item.whatsapp) openLink('whatsapp', item.whatsapp);
     }
   };
 
@@ -125,10 +130,26 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
         </div>
       </div>
 
+      {/* MODAL SECTION - OPTIMIZED FOR MOBILE */}
       {showContactModal && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl animate-in fade-in duration-300" onClick={(e) => { e.stopPropagation(); setShowContactModal(false); }}>
-          <div className="modal-content bg-white dark:bg-slate-900 w-[92vw] max-w-[360px] mx-auto rounded-[3rem] p-8 relative shadow-2xl animate-in zoom-in-95 duration-300 border border-white/10" onClick={(e) => e.stopPropagation()}>
-             <button onClick={(e) => { e.stopPropagation(); setShowContactModal(false); }} className="absolute top-6 right-6 p-2 bg-slate-100 dark:bg-white/5 rounded-full dark:text-white hover:rotate-90 transition-transform active:scale-90">
+        <div 
+          className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl animate-in fade-in duration-300" 
+          onClick={(e) => { 
+            e.stopPropagation(); 
+            setShowContactModal(false); 
+          }}
+        >
+          <div 
+            className="modal-content bg-white dark:bg-slate-900 w-[92vw] max-w-[360px] mx-auto rounded-[3rem] p-8 relative shadow-2xl animate-in zoom-in-95 duration-300 border border-white/10" 
+            onClick={(e) => e.stopPropagation()}
+          >
+             <button 
+               onClick={(e) => { 
+                 e.stopPropagation(); 
+                 setShowContactModal(false); 
+               }} 
+               className="absolute top-6 right-6 p-2 bg-slate-100 dark:bg-white/5 rounded-full dark:text-white hover:rotate-90 transition-transform active:scale-90"
+             >
                <X size={20}/>
              </button>
              
@@ -138,22 +159,22 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
              </div>
              
              <div className="space-y-4">
-                {item.whatsapp && (
+                {item.whatsapp && item.whatsapp.trim() !== "" && (
                   <button onClick={(e) => openLink('whatsapp', item.whatsapp, e)} className="w-full flex items-center justify-between p-5 bg-[#25D366] text-white rounded-[1.5rem] font-black uppercase text-[11px] tracking-[0.15em] hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-green-500/20">
                     <span>WhatsApp</span> <MessageCircle size={20}/>
                   </button>
                 )}
-                {item.instagram && (
+                {item.instagram && item.instagram.trim() !== "" && (
                   <button onClick={(e) => openLink('instagram', item.instagram, e)} className="w-full flex items-center justify-between p-5 bg-gradient-to-r from-[#833AB4] via-[#FD1D1D] to-[#F56040] text-white rounded-[1.5rem] font-black uppercase text-[11px] tracking-[0.15em] hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-red-500/20">
                     <span>Instagram</span> <Instagram size={20}/>
                   </button>
                 )}
-                {item.facebook && (
+                {item.facebook && item.facebook.trim() !== "" && (
                   <button onClick={(e) => openLink('facebook', item.facebook, e)} className="w-full flex items-center justify-between p-5 bg-[#1877F2] text-white rounded-[1.5rem] font-black uppercase text-[11px] tracking-[0.15em] hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-blue-500/20">
                     <span>Facebook</span> <Facebook size={20}/>
                   </button>
                 )}
-                {item.tiktok && (
+                {item.tiktok && item.tiktok.trim() !== "" && (
                   <button onClick={(e) => openLink('tiktok', item.tiktok, e)} className="w-full flex items-center justify-between p-5 bg-black text-white rounded-[1.5rem] font-black uppercase text-[11px] tracking-[0.15em] hover:brightness-110 active:scale-95 transition-all border border-white/20">
                     <span>TikTok</span> <Video size={20}/>
                   </button>
