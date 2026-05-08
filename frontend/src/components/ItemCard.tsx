@@ -64,13 +64,21 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  // UPDATED CHAT LOGIC WITH FALLBACKS FOR OLD ITEMS
   const handleChatNow = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    // Try new schema field 'whatsapp', then fallback to 'phoneNumber' or 'contact'
-    const whatsappValue = item.whatsapp || item.phoneNumber || item.contact;
+    // 1. DEBUG: This will show you the exact fields of the old item in your browser console
+    console.log("Checking Item Data:", item);
+
+    // 2. ULTIMATE FALLBACK: Checks every possible field name used in your app's history
+    const whatsappValue = 
+      item.whatsapp || 
+      item.phoneNumber || 
+      item.phone || 
+      item.contact || 
+      item.seller?.phone || 
+      item.seller?.whatsapp;
 
     const rawChannels = [
       { id: 'whatsapp', name: 'WhatsApp', value: whatsappValue },
@@ -82,22 +90,24 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
     const activeChannels = rawChannels.filter(channel => 
       channel.value && 
       String(channel.value).trim() !== "" && 
-      String(channel.value) !== "null" &&
-      String(channel.value) !== "undefined"
+      String(channel.value).toLowerCase() !== "null" &&
+      String(channel.value).toLowerCase() !== "undefined"
     );
 
     if (activeChannels.length === 1) {
-      // Direct redirect if only one channel (common for old items)
       openLink(activeChannels[0].id, activeChannels[0].value);
     } else if (activeChannels.length > 1) {
-      // Show selection modal if multiple channels exist
       setModalChannels(activeChannels);
       setShowContactModal(true);
     } else {
-      alert("This seller hasn't provided contact links.");
+      // 3. Last resort check
+      if (whatsappValue) {
+        openLink('whatsapp', whatsappValue);
+      } else {
+        alert("This seller hasn't provided contact links.");
+      }
     }
   };
-
   return (
     <>
       <div onClick={handleViewDetails} className="glass-card group rounded-[2.5rem] overflow-hidden hover:scale-[1.03] transition-all duration-500 hover:border-blue-500/40 cursor-pointer flex flex-col h-full relative">
