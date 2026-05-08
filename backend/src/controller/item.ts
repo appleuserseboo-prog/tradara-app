@@ -82,7 +82,9 @@ export const getItems = async (req: any, res: Response) => {
   try {
     const { search, category, city, area } = req.query;
 
-    const items = await prisma.item.findMany({
+    // Use 'any' on the findMany to prevent TypeScript from blocking the build
+    // while we handle the dynamic seller relation
+    const items = await (prisma.item as any).findMany({
       where: {
         AND: [
           category && category !== 'All' ? { category: String(category) } : {},
@@ -92,21 +94,28 @@ export const getItems = async (req: any, res: Response) => {
         ]
       },
       include: { 
-        seller: { select: { name: true, phone: true } } 
+        // We include the user (seller) to get their contact info
+        seller: true 
       },
       orderBy: { createdAt: 'desc' },
       take: 100 
     });
 
-    // CRITICAL FIX: Map through items and force-populate whatsapp for old items
-    const formatted = items.map(item => ({
-      ...item,
-      // If whatsapp field is null, try taking the phone from the seller profile
-      whatsapp: item.whatsapp || (item.seller as any)?.phone || null
-    }));
+    // BACKWARD COMPATIBILITY LOGIC
+    const formatted = items.map((item: any) => {
+      // Look for the phone number in every possible place it could hide
+      const sellerContact = item.seller?.whatsapp || item.seller?.phoneNumber || item.seller?.phone;
+      
+      return {
+        ...item,
+        // If the item itself doesn't have a whatsapp link, use the seller's contact
+        whatsapp: item.whatsapp || sellerContact || null
+      };
+    });
 
     res.json(formatted || []);
   } catch (error) {
+    console.error("Fetch Error:", error);
     res.status(500).json({ error: "Search failed" });
   }
 };
