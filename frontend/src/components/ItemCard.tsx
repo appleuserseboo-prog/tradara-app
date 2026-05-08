@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   MessageCircle, MapPin, BadgeCheck, ShoppingCart, 
-  MessageSquare, Flame, Instagram, Facebook, Video, X
+  MessageSquare, Instagram, Facebook, Video, X
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 
@@ -35,6 +35,26 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
     return `${baseUrl}/uploads/${imagePath.replace(/\\/g, '/')}`;
   };
 
+  // Logic to handle Chat Click
+  const handleChatNow = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    // Filter active links
+    const channels = [
+      { id: 'whatsapp', value: item.whatsapp },
+      { id: 'instagram', value: item.instagram },
+      { id: 'facebook', value: item.facebook },
+      { id: 'tiktok', value: item.tiktok }
+    ].filter(c => c.value);
+
+    // If only one exists, go direct. If more, show modal.
+    if (channels.length === 1) {
+      openLink(channels[0].id, channels[0].value);
+    } else if (channels.length > 1) {
+      setShowContactModal(true);
+    }
+  };
+
   const openLink = (platform: string, value: string) => {
     if (!value) return;
     let url = "";
@@ -48,6 +68,12 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
         break;
       case 'instagram':
         url = value.startsWith('http') ? value : `https://instagram.com/${value.replace('@','')}`;
+        break;
+      case 'facebook':
+        url = value.startsWith('http') ? value : `https://facebook.com/${value}`;
+        break;
+      case 'tiktok':
+        url = value.startsWith('http') ? value : `https://tiktok.com/@${value.replace('@','')}`;
         break;
       default:
         url = value.startsWith('http') ? value : `https://${value}`;
@@ -97,7 +123,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
           <p className="text-slate-400 text-xs line-clamp-2 italic leading-relaxed">"{item.description}"</p>
           
           <div className="mt-auto flex gap-2 pt-2">
-            <button onClick={(e) => { e.stopPropagation(); setShowContactModal(true); }} className="flex-1 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white py-3 rounded-2xl font-bold text-[10px] flex items-center justify-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700 uppercase tracking-widest">
+            <button onClick={handleChatNow} className="flex-1 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white py-3 rounded-2xl font-bold text-[10px] flex items-center justify-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700 uppercase tracking-widest">
               <MessageSquare size={14} /> CHAT
             </button>
             <button onClick={(e) => { e.stopPropagation(); addToCart(item); }} className="flex-1 bg-blue-600 text-white py-3 rounded-2xl font-bold text-[10px] flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 uppercase tracking-widest">
@@ -107,33 +133,35 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
         </div>
       </div>
 
-      {/* CONTACT SELECTION MODAL */}
+      {/* CONTACT SELECTION MODAL - Optimized for Mobile */}
       {showContactModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-[3rem] p-8 relative shadow-2xl animate-in zoom-in-95 duration-300">
-             <button onClick={() => setShowContactModal(false)} className="absolute top-6 right-6 p-2 bg-slate-100 dark:bg-white/5 rounded-full dark:text-white"><X size={20}/></button>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-slate-900 w-[90vw] max-w-[350px] mx-auto rounded-[2.5rem] p-6 relative shadow-2xl animate-in zoom-in-95 duration-300">
+             <button onClick={() => setShowContactModal(false)} className="absolute top-5 right-5 p-2 bg-slate-100 dark:bg-white/5 rounded-full dark:text-white hover:rotate-90 transition-transform"><X size={18}/></button>
              
-             <h2 className="text-2xl font-black dark:text-white uppercase tracking-tighter mb-1">Contact Seller</h2>
-             <p className="text-slate-500 text-sm mb-8">Choose your preferred channel</p>
+             <div className="text-center mb-6">
+                <h2 className="text-xl font-black dark:text-white uppercase tracking-tighter">Choose Channel</h2>
+                <p className="text-slate-500 text-[10px] uppercase font-bold tracking-widest mt-1">Chat directly with seller</p>
+             </div>
              
              <div className="space-y-3">
                 {item.whatsapp && (
-                  <button onClick={() => openLink('whatsapp', item.whatsapp)} className="w-full flex items-center justify-between p-4 bg-green-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:scale-105 transition-all">
+                  <button onClick={() => openLink('whatsapp', item.whatsapp)} className="w-full flex items-center justify-between p-4 bg-[#25D366] text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:brightness-110 active:scale-95 transition-all">
                     <span>WhatsApp</span> <MessageCircle size={18}/>
                   </button>
                 )}
                 {item.instagram && (
-                  <button onClick={() => openLink('instagram', item.instagram)} className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:scale-105 transition-all">
+                  <button onClick={() => openLink('instagram', item.instagram)} className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-[#833AB4] via-[#FD1D1D] to-[#F56040] text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:brightness-110 active:scale-95 transition-all">
                     <span>Instagram</span> <Instagram size={18}/>
                   </button>
                 )}
                 {item.facebook && (
-                  <button onClick={() => openLink('facebook', item.facebook)} className="w-full flex items-center justify-between p-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:scale-105 transition-all">
+                  <button onClick={() => openLink('facebook', item.facebook)} className="w-full flex items-center justify-between p-4 bg-[#1877F2] text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:brightness-110 active:scale-95 transition-all">
                     <span>Facebook</span> <Facebook size={18}/>
                   </button>
                 )}
                 {item.tiktok && (
-                  <button onClick={() => openLink('tiktok', item.tiktok)} className="w-full flex items-center justify-between p-4 bg-black text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:scale-105 transition-all border border-white/10">
+                  <button onClick={() => openLink('tiktok', item.tiktok)} className="w-full flex items-center justify-between p-4 bg-black text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:brightness-110 active:scale-95 transition-all border border-white/10">
                     <span>TikTok</span> <Video size={18}/>
                   </button>
                 )}
