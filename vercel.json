@@ -1,13 +1,16 @@
 {
   "version": 2,
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { 
+      "source": "/(.*)", 
+      "destination": "/frontend/index.html" 
+    }
   ],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" }
+        { "key": "Cache-Control", "value": "no-store, must-revalidate" }
       ]
     }
   ]
