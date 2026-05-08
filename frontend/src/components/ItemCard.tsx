@@ -47,7 +47,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
 
     switch(platform.toLowerCase()) {
       case 'whatsapp':
-        let phone = value.replace(/\D/g, '');
+        let phone = String(value).replace(/\D/g, '');
         if (phone.startsWith('0')) phone = `234${phone.substring(1)}`;
         url = `https://wa.me/${phone}?text=${message}`;
         break;
@@ -64,41 +64,37 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  // FIXED CHAT LOGIC
+  // UPDATED CHAT LOGIC WITH FALLBACKS FOR OLD ITEMS
   const handleChatNow = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    try {
-      // 1. Identify valid channels (filtering out null/undefined from old items)
-      const activeChannels = [
-        { id: 'whatsapp', name: 'WhatsApp', value: item.whatsapp },
-        { id: 'instagram', name: 'Instagram', value: item.instagram },
-        { id: 'facebook', name: 'Facebook', value: item.facebook },
-        { id: 'tiktok', name: 'TikTok', value: item.tiktok }
-      ].filter(channel => 
-        channel.value !== null && 
-        channel.value !== undefined && 
-        String(channel.value).trim() !== ""
-      );
+    // Try new schema field 'whatsapp', then fallback to 'phoneNumber' or 'contact'
+    const whatsappValue = item.whatsapp || item.phoneNumber || item.contact;
 
-      if (activeChannels.length === 1) {
-        // Direct redirect for old items (only WhatsApp usually)
-        openLink(activeChannels[0].id, activeChannels[0].value);
-      } else if (activeChannels.length > 1) {
-        // Show modal for newer items
-        setModalChannels(activeChannels);
-        setShowContactModal(true);
-      } else {
-        // Final safety check for old database structure
-        if (item.whatsapp) {
-           openLink('whatsapp', item.whatsapp);
-        } else {
-           alert("This seller hasn't provided contact links.");
-        }
-      }
-    } catch (error) {
-      console.error("Chat failure:", error);
+    const rawChannels = [
+      { id: 'whatsapp', name: 'WhatsApp', value: whatsappValue },
+      { id: 'instagram', name: 'Instagram', value: item.instagram },
+      { id: 'facebook', name: 'Facebook', value: item.facebook },
+      { id: 'tiktok', name: 'TikTok', value: item.tiktok }
+    ];
+
+    const activeChannels = rawChannels.filter(channel => 
+      channel.value && 
+      String(channel.value).trim() !== "" && 
+      String(channel.value) !== "null" &&
+      String(channel.value) !== "undefined"
+    );
+
+    if (activeChannels.length === 1) {
+      // Direct redirect if only one channel (common for old items)
+      openLink(activeChannels[0].id, activeChannels[0].value);
+    } else if (activeChannels.length > 1) {
+      // Show selection modal if multiple channels exist
+      setModalChannels(activeChannels);
+      setShowContactModal(true);
+    } else {
+      alert("This seller hasn't provided contact links.");
     }
   };
 
