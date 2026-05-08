@@ -65,19 +65,14 @@ export const getItems = async (req: any, res: Response) => {
         ]
       },
       include: { 
-        seller: { 
-          select: { 
-            name: true, 
-            phone: true, 
-            isVerified: true 
-          } 
-        } 
+        // WE MUST INCLUDE THE SELLER'S PHONE HERE
+        seller: { select: { name: true, phone: true } } 
       },
       orderBy: { createdAt: 'desc' },
       take: 100 
     });
 
-    // Formatting Logic: If item.whatsapp is null, use the seller's phone
+    // BRIDGE LOGIC: If an item has no whatsapp value, use the seller's phone
     const formatted = items.map(item => ({
       ...item,
       whatsapp: item.whatsapp || (item.seller as any)?.phone || null
@@ -89,6 +84,7 @@ export const getItems = async (req: any, res: Response) => {
   }
 };
 
+// ... keep updateItem, getMyDashboardItems, and deleteItem as they were
 export const updateItem = async (req: any, res: Response) => {
   try {
     const { 

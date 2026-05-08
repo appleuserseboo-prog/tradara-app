@@ -16,7 +16,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
   const [showContactModal, setShowContactModal] = useState(false);
   const [modalChannels, setModalChannels] = useState<any[]>([]);
 
-  // Navigation helper
+  // Navigation helper with scroll-to-top
   const handleViewDetails = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     // Don't navigate if clicking buttons or modal
@@ -30,7 +30,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
     }
   };
 
-  // Image optimization helper
+  // Optimized Image URL helper
   const getImageUrl = (imagePath: string) => {
     if (!imagePath) return 'https://placehold.co/400x500?text=No+Image';
     if (imagePath.includes('cloudinary.com')) {
@@ -41,7 +41,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
     return `${baseUrl}/uploads/${imagePath.replace(/\\/g, '/')}`;
   };
 
-  // Link generator for social/chat platforms
+  // Link generator with localized phone formatting
   const openLink = (platform: string, value: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     if (!value) return;
@@ -68,14 +68,12 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  // Contact handler with extensive fallback logic
+  // Contact handler with "Pinpoint" fallback logic for old/new items
   const handleChatNow = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    console.log("Checking Item Data:", item);
-
-    // Deep search for any valid phone number field
+    // Deep search across all possible schema versions
     const whatsappValue = 
       item.whatsapp || 
       item.seller?.phone || 
@@ -91,7 +89,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
       { id: 'tiktok', name: 'TikTok', value: item.tiktok }
     ];
 
-    // Filter out null, undefined, or empty strings
+    // Filter out invalid/empty strings and "null" values from database
     const activeChannels = rawChannels.filter(channel => 
       channel.value && 
       String(channel.value).trim() !== "" && 
@@ -105,8 +103,8 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
       setModalChannels(activeChannels);
       setShowContactModal(true);
     } else {
-      // Last ditch effort if logic above fails but value exists
-      if (whatsappValue) {
+      // Last ditch effort: try whatsappValue directly if it exists but failed filter
+      if (whatsappValue && String(whatsappValue).length > 5) {
          openLink('whatsapp', whatsappValue);
       } else {
          alert("This seller hasn't provided contact links.");
@@ -116,12 +114,12 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
 
   return (
     <>
-      {/* Main Card */}
+      {/* Main Card Wrapper */}
       <div 
         onClick={handleViewDetails} 
         className="glass-card group rounded-[2.5rem] overflow-hidden hover:scale-[1.03] transition-all duration-500 hover:border-blue-500/40 cursor-pointer flex flex-col h-full relative"
       >
-        {/* Image Section */}
+        {/* Image & Badges Section */}
         <div className="relative aspect-[4/5] overflow-hidden bg-slate-900 shrink-0">
           <img 
             src={getImageUrl(item.images?.[0])} 
@@ -148,7 +146,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
           </div>
         </div>
         
-        {/* Info Section */}
+        {/* Content Info Section */}
         <div className="p-4 sm:p-6 flex flex-col flex-grow gap-3">
           <div className="flex justify-between items-center">
              <span className="text-[9px] font-black text-blue-500 uppercase bg-blue-500/10 px-2 py-1 rounded-full">
@@ -156,7 +154,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
              </span>
              <div className="flex items-center gap-1 text-slate-500">
                <MapPin size={10} />
-               <span className="text-[9px] font-bold uppercase truncate max-w-[100px]">{item.city}</span>
+               <span className="text-[9px] font-bold uppercase truncate max-w-[100px]">{item.city || 'Location N/A'}</span>
              </div>
           </div>
 
@@ -165,10 +163,10 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
           </h3>
           
           <p className="text-slate-400 text-xs line-clamp-2 italic leading-relaxed">
-            "{item.description}"
+            "{item.description || 'No description provided.'}"
           </p>
           
-          {/* Action Buttons */}
+          {/* Main Actions */}
           <div className="mt-auto flex gap-2 pt-2">
             <button 
               onClick={handleChatNow} 
@@ -186,7 +184,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
         </div>
       </div>
 
-      {/* Multi-Channel Contact Modal */}
+      {/* Multi-Channel Animated Contact Modal */}
       {showContactModal && (
         <div 
           className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl animate-in fade-in duration-300" 
@@ -223,7 +221,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
                       ${channel.id === 'whatsapp' ? 'bg-[#25D366] shadow-green-500/20' : ''}
                       ${channel.id === 'instagram' ? 'bg-gradient-to-r from-[#833AB4] via-[#FD1D1D] to-[#F56040] shadow-red-500/20' : ''}
                       ${channel.id === 'facebook' ? 'bg-[#1877F2] shadow-blue-500/20' : ''}
-                      ${channel.id === 'tiktok' ? 'bg-black border border-white/20' : ''}
+                      ${channel.id === 'tiktok' ? 'bg-black border border-white/20 shadow-slate-500/10' : ''}
                     `}
                   >
                     <span>{channel.name}</span>
