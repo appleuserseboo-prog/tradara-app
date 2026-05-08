@@ -1,6 +1,6 @@
 datasource db {
   provider = "mongodb"
-  url      = env("DATABASE_URL") 
+  url      = env("DATABASE_URL")
 }
 
 generator client {
@@ -12,7 +12,7 @@ model User {
   email      String   @unique
   password   String
   name       String
-  phone      String?  // <--- CRITICAL ADDITION: Needed for contact fallback
+  phone      String?  // CRITICAL: Acts as the fallback for WhatsApp
   isVerified Boolean  @default(false)
   items      Item[]
   createdAt  DateTime @default(now())
@@ -41,7 +41,7 @@ model Item {
   images       String[] 
   
   userId       String   @db.ObjectId
-  seller       User     @relation(fields: [userId], references: [id])
+  seller       User     @relation(fields: [userId], references: [id]) // Standardized Relation
   createdAt    DateTime @default(now())
 
   @@index([stockName]) 

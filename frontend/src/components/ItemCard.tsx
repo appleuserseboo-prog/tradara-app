@@ -19,7 +19,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
   // Navigation helper with scroll-to-top
   const handleViewDetails = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
-    // Don't navigate if clicking buttons or modal
+    // Don't navigate if clicking buttons or modal content
     if (target.closest('button') || target.closest('.modal-content')) return;
     
     e.preventDefault();
@@ -30,10 +30,11 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
     }
   };
 
-  // Optimized Image URL helper
+  // Optimized Image URL helper with Cloudinary auto-optimization and local backend fallback
   const getImageUrl = (imagePath: string) => {
     if (!imagePath) return 'https://placehold.co/400x500?text=No+Image';
     if (imagePath.includes('cloudinary.com')) {
+      // Apply on-the-fly transformations for marketplace performance
       return imagePath.replace('/upload/', '/upload/w_500,c_fill,g_auto,q_auto,f_auto/');
     }
     if (imagePath.startsWith('http')) return imagePath;
@@ -41,7 +42,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
     return `${baseUrl}/uploads/${imagePath.replace(/\\/g, '/')}`;
   };
 
-  // Link generator with localized phone formatting
+  // Link generator with localized phone formatting for Nigerian contexts
   const openLink = (platform: string, value: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     if (!value) return;
@@ -52,6 +53,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
     switch(platform.toLowerCase()) {
       case 'whatsapp':
         let phone = String(value).replace(/\D/g, '');
+        // Fix for Nigerian local numbers starting with 0
         if (phone.startsWith('0')) phone = `234${phone.substring(1)}`;
         url = `https://wa.me/${phone}?text=${message}`;
         break;
@@ -68,12 +70,12 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  // Contact handler with "Pinpoint" fallback logic for old/new items
+  // Contact handler with "Pinpoint" fallback logic to handle all possible schema versions
   const handleChatNow = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    // Deep search across all possible schema versions
+    // Deep search across all possible schema versions (item level vs seller level)
     const whatsappValue = 
       item.whatsapp || 
       item.seller?.phone || 
@@ -89,7 +91,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
       { id: 'tiktok', name: 'TikTok', value: item.tiktok }
     ];
 
-    // Filter out invalid/empty strings and "null" values from database
+    // Filter out invalid/empty strings and "null" values from database records
     const activeChannels = rawChannels.filter(channel => 
       channel.value && 
       String(channel.value).trim() !== "" && 
@@ -105,7 +107,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
     } else {
       // Last ditch effort: try whatsappValue directly if it exists but failed filter
       if (whatsappValue && String(whatsappValue).length > 5) {
-         openLink('whatsapp', whatsappValue);
+         openLink('whatsapp', String(whatsappValue));
       } else {
          alert("This seller hasn't provided contact links.");
       }
@@ -114,7 +116,6 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
 
   return (
     <>
-      {/* Main Card Wrapper */}
       <div 
         onClick={handleViewDetails} 
         className="glass-card group rounded-[2.5rem] overflow-hidden hover:scale-[1.03] transition-all duration-500 hover:border-blue-500/40 cursor-pointer flex flex-col h-full relative"
@@ -127,7 +128,6 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
             className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700" 
             alt={item.stockName} 
           />
-          
           {/* Status Badge */}
           <div className="absolute top-3 left-3">
              <div className="backdrop-blur-xl bg-blue-600/20 border border-blue-400/30 px-3 py-1 rounded-full flex items-center gap-2">
@@ -135,8 +135,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
                 <span className="text-[8px] font-black text-blue-400 uppercase tracking-tighter">Visible Worldwide</span>
              </div>
           </div>
-
-          {/* Price Tag */}
+          {/* Price Badge */}
           <div className="absolute top-3 right-3 flex flex-col gap-1 items-end">
             <div className="glass-card px-3 py-1 rounded-xl border-white/20 bg-black/40 backdrop-blur-md">
               <span className="font-black text-white text-sm sm:text-lg">
@@ -146,7 +145,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
           </div>
         </div>
         
-        {/* Content Info Section */}
+        {/* Item Details Section */}
         <div className="p-4 sm:p-6 flex flex-col flex-grow gap-3">
           <div className="flex justify-between items-center">
              <span className="text-[9px] font-black text-blue-500 uppercase bg-blue-500/10 px-2 py-1 rounded-full">
@@ -166,7 +165,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
             "{item.description || 'No description provided.'}"
           </p>
           
-          {/* Main Actions */}
+          {/* Action Buttons */}
           <div className="mt-auto flex gap-2 pt-2">
             <button 
               onClick={handleChatNow} 
@@ -184,44 +183,39 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
         </div>
       </div>
 
-      {/* Multi-Channel Animated Contact Modal */}
+      {/* Multi-Channel Contact Modal */}
       {showContactModal && (
         <div 
           className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl animate-in fade-in duration-300" 
-          onClick={(e) => { 
-            e.stopPropagation(); 
-            setShowContactModal(false); 
-          }}
+          onClick={() => setShowContactModal(false)}
         >
           <div 
-            className="modal-content bg-white dark:bg-slate-900 w-[92vw] max-w-[360px] mx-auto rounded-[3rem] p-8 relative shadow-2xl animate-in zoom-in-95 duration-300 border border-white/10" 
+            className="modal-content bg-white dark:bg-slate-900 w-[92vw] max-w-[360px] mx-auto rounded-[3rem] p-8 relative shadow-2xl border border-white/10" 
             onClick={(e) => e.stopPropagation()}
           >
+             {/* Close Button */}
              <button 
-               onClick={(e) => { 
-                 e.stopPropagation(); 
-                 setShowContactModal(false); 
-               }} 
-               className="absolute top-6 right-6 p-2 bg-slate-100 dark:bg-white/5 rounded-full dark:text-white hover:rotate-90 transition-transform active:scale-90"
+               onClick={() => setShowContactModal(false)} 
+               className="absolute top-6 right-6 p-2 bg-slate-100 dark:bg-white/5 rounded-full dark:text-white hover:rotate-90 transition-transform"
              >
                <X size={20}/>
              </button>
-             
+
              <div className="text-center mb-8">
                 <h2 className="text-2xl font-black dark:text-white uppercase tracking-tighter">Choose Channel</h2>
                 <p className="text-slate-500 text-[10px] uppercase font-bold tracking-widest mt-2 px-4 leading-tight">Pick your preferred way to reach the seller</p>
              </div>
-             
+
              <div className="space-y-4">
                 {modalChannels.map((channel) => (
                   <button 
                     key={channel.id}
                     onClick={(e) => openLink(channel.id, channel.value, e)} 
-                    className={`w-full flex items-center justify-between p-5 text-white rounded-[1.5rem] font-black uppercase text-[11px] tracking-[0.15em] hover:brightness-110 active:scale-95 transition-all shadow-lg 
-                      ${channel.id === 'whatsapp' ? 'bg-[#25D366] shadow-green-500/20' : ''}
-                      ${channel.id === 'instagram' ? 'bg-gradient-to-r from-[#833AB4] via-[#FD1D1D] to-[#F56040] shadow-red-500/20' : ''}
-                      ${channel.id === 'facebook' ? 'bg-[#1877F2] shadow-blue-500/20' : ''}
-                      ${channel.id === 'tiktok' ? 'bg-black border border-white/20 shadow-slate-500/10' : ''}
+                    className={`w-full flex items-center justify-between p-5 text-white rounded-[1.5rem] font-black uppercase text-[11px] tracking-[0.15em] transition-all hover:brightness-110 active:scale-95
+                      ${channel.id === 'whatsapp' ? 'bg-[#25D366]' : ''}
+                      ${channel.id === 'instagram' ? 'bg-gradient-to-r from-[#833AB4] via-[#FD1D1D] to-[#F56040]' : ''}
+                      ${channel.id === 'facebook' ? 'bg-[#1877F2]' : ''}
+                      ${channel.id === 'tiktok' ? 'bg-black border border-white/20' : ''}
                     `}
                   >
                     <span>{channel.name}</span>
