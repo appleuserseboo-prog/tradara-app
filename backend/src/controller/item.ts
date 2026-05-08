@@ -36,7 +36,6 @@ export const createItem = async (req: any, res: Response) => {
         city: city || "",
         country: country || "Nigeria",
         area: area || "",
-        // Social media fields saved explicitly
         whatsapp: whatsapp || null,
         facebook: facebook || null,
         tiktok: tiktok || null,
@@ -79,7 +78,6 @@ export const updateItem = async (req: any, res: Response) => {
   }
 };
 
-// ... keep getItems, getMyDashboardItems, and deleteItem as they were
 export const getItems = async (req: any, res: Response) => {
   try {
     const { search, category, city, area } = req.query;
@@ -93,18 +91,25 @@ export const getItems = async (req: any, res: Response) => {
           area ? { area: { contains: String(area), mode: 'insensitive' } } : {},
         ]
       },
-      include: { seller: { select: { name: true } } },
+      include: { 
+        seller: { select: { name: true, phone: true } } 
+      },
       orderBy: { createdAt: 'desc' },
-      take: 50 
+      take: 100 
     });
 
-    res.json(items || []);
+    // CRITICAL FIX: Map through items and force-populate whatsapp for old items
+    const formatted = items.map(item => ({
+      ...item,
+      // If whatsapp field is null, try taking the phone from the seller profile
+      whatsapp: item.whatsapp || (item.seller as any)?.phone || null
+    }));
+
+    res.json(formatted || []);
   } catch (error) {
     res.status(500).json({ error: "Search failed" });
   }
 };
-
-
 
 export const getMyDashboardItems = async (req: any, res: Response) => {
   try {

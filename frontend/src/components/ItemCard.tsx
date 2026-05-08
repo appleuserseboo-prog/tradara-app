@@ -68,10 +68,10 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
     e.preventDefault();
     e.stopPropagation();
 
-    // 1. DEBUG: This will show you the exact fields of the old item in your browser console
+    // 1. DEBUG: Look at this in your browser console to see hidden field names
     console.log("Checking Item Data:", item);
 
-    // 2. ULTIMATE FALLBACK: Checks every possible field name used in your app's history
+    // 2. ULTIMATE FALLBACK: Check all historical field names
     const whatsappValue = 
       item.whatsapp || 
       item.phoneNumber || 
@@ -100,14 +100,15 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
       setModalChannels(activeChannels);
       setShowContactModal(true);
     } else {
-      // 3. Last resort check
+      // Last resort try-catch for items with only a phone value
       if (whatsappValue) {
-        openLink('whatsapp', whatsappValue);
+         openLink('whatsapp', whatsappValue);
       } else {
-        alert("This seller hasn't provided contact links.");
+         alert("This seller hasn't provided contact links.");
       }
     }
   };
+
   return (
     <>
       <div onClick={handleViewDetails} className="glass-card group rounded-[2.5rem] overflow-hidden hover:scale-[1.03] transition-all duration-500 hover:border-blue-500/40 cursor-pointer flex flex-col h-full relative">
