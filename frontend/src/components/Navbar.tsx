@@ -50,7 +50,7 @@ export const Navbar: React.FC = () => {
           <span className="text-[10px] font-black uppercase tracking-tighter">Night</span>
         </button>
 
-        {/* 3. AUTH LOGIC (LOGIN / SELL-MENU) */}
+        {/* 3. AUTH LOGIC */}
         {isLoggedIn ? (
           <div className="flex items-center gap-6">
             <Link to="/add-product" className={`flex flex-col items-center gap-1 transition-all ${isActive('/add-product') ? 'text-blue-600' : 'text-slate-500'}`}>
@@ -63,7 +63,6 @@ export const Navbar: React.FC = () => {
             </Link>
           </div>
         ) : (
-          /* ONLY LOGIN SHOWS HERE - JOIN REMOVED */
           <Link to="/login" className={`flex flex-col items-center gap-1 transition-all ${isActive('/login') ? 'text-blue-600 scale-110' : 'text-slate-500'}`}>
             <User size={22} strokeWidth={isActive('/login') ? 3 : 2} />
             <span className="text-[10px] font-black uppercase tracking-tighter">Login</span>

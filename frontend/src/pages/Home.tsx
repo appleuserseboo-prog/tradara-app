@@ -51,8 +51,8 @@ export const Home = () => {
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950 transition-colors">
       
-      {/* HERO SECTION - REDUCED TOP PADDING TO REMOVE WHITE SPACE */}
-      <section className="max-w-7xl mx-auto px-4 grid lg:grid-cols-2 gap-8 items-center pt-24 pb-10">
+      {/* HERO SECTION - ADJUSTED pt-16 TO SIT FLUSH WITH NAVBAR */}
+      <section className="max-w-7xl mx-auto px-4 grid lg:grid-cols-2 gap-8 items-center pt-16 pb-10">
         <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8 }} className="space-y-6">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600/10 border border-blue-500/30 text-blue-500 text-xs font-black tracking-widest uppercase">
             <Rocket size={14} className="animate-bounce" /> The Future of Commerce
@@ -126,7 +126,7 @@ export const Home = () => {
         </div>
       </div>
 
-      {/* 4-COLUMN GRID (ADAPTIVE FOR MOBILE) */}
+      {/* 4-COLUMN GRID */}
       <div className="max-w-7xl mx-auto px-2 pb-32">
         <Suspense fallback={<div className="flex justify-center py-20"><Loader2 className="animate-spin text-blue-600" size={48} /></div>}>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-6">
