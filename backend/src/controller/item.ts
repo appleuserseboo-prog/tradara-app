@@ -10,7 +10,6 @@ cloudinary.config({
 
 export const createItem = async (req: any, res: Response) => {
   try {
-    // 1. Destructure the new social fields from req.body
     const { 
       stockName, price, currency, description, category, 
       city, country, area, canBargain,
@@ -27,7 +26,6 @@ export const createItem = async (req: any, res: Response) => {
       imagePaths = uploadResults.map(result => result.secure_url);
     }
 
-    // 2. Create the item with structured social links
     const newItem = await prisma.item.create({
       data: {
         stockName,
@@ -38,7 +36,7 @@ export const createItem = async (req: any, res: Response) => {
         city: city || "",
         country: country || "Nigeria",
         area: area || "",
-        // Save social media fields individually
+        // Social media fields saved explicitly
         whatsapp: whatsapp || null,
         facebook: facebook || null,
         tiktok: tiktok || null,
@@ -54,6 +52,34 @@ export const createItem = async (req: any, res: Response) => {
   }
 };
 
+export const updateItem = async (req: any, res: Response) => {
+  try {
+    const { 
+      stockName, price, currency, city, area, country, 
+      category, description, canBargain,
+      whatsapp, facebook, tiktok, instagram 
+    } = req.body;
+    const { id } = req.params;
+
+    const updated = await prisma.item.update({
+      where: { id, userId: req.user.id },
+      data: { 
+        stockName, city, area, country, category, description, currency,
+        whatsapp: whatsapp || null,
+        facebook: facebook || null,
+        tiktok: tiktok || null,
+        instagram: instagram || null,
+        canBargain: canBargain !== undefined ? (canBargain === 'true' || canBargain === true) : undefined,
+        price: price ? parseFloat(String(price)) : undefined 
+      }
+    });
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: "Update failed" });
+  }
+};
+
+// ... keep getItems, getMyDashboardItems, and deleteItem as they were
 export const getItems = async (req: any, res: Response) => {
   try {
     const { search, category, city, area } = req.query;
@@ -78,30 +104,7 @@ export const getItems = async (req: any, res: Response) => {
   }
 };
 
-export const updateItem = async (req: any, res: Response) => {
-  try {
-    const { 
-      stockName, price, currency, city, area, country, 
-      category, description, canBargain,
-      whatsapp, facebook, tiktok, instagram 
-    } = req.body;
-    const { id } = req.params;
 
-    const updated = await prisma.item.update({
-      where: { id, userId: req.user.id },
-      data: { 
-        stockName, city, area, country, category, description, currency,
-        // Update social links
-        whatsapp, facebook, tiktok, instagram,
-        canBargain: canBargain !== undefined ? (canBargain === 'true' || canBargain === true) : undefined,
-        price: price ? parseFloat(String(price)) : undefined 
-      }
-    });
-    res.json(updated);
-  } catch (error) {
-    res.status(500).json({ error: "Update failed" });
-  }
-};
 
 export const getMyDashboardItems = async (req: any, res: Response) => {
   try {

@@ -17,7 +17,6 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
   const [modalChannels, setModalChannels] = useState<any[]>([]);
   
   const handleViewDetails = (e: React.MouseEvent) => {
-    // If we clicked a button or the modal, don't trigger the detail view
     const target = e.target as HTMLElement;
     if (target.closest('button') || target.closest('.modal-content')) return;
     
@@ -49,7 +48,6 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
     switch(platform.toLowerCase()) {
       case 'whatsapp':
         let phone = value.replace(/\D/g, '');
-        // If it starts with 0 (Nigerian format), convert to 234
         if (phone.startsWith('0')) phone = `234${phone.substring(1)}`;
         url = `https://wa.me/${phone}?text=${message}`;
         break;
@@ -66,13 +64,13 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  // UPDATED: PRO LOGIC FOR DIRECT REDIRECT VS MODAL
+  // FIXED CHAT LOGIC
   const handleChatNow = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
     try {
-      // 1. Identify ONLY valid, working links (handles null/undefined for old items)
+      // 1. Identify valid channels (filtering out null/undefined from old items)
       const activeChannels = [
         { id: 'whatsapp', name: 'WhatsApp', value: item.whatsapp },
         { id: 'instagram', name: 'Instagram', value: item.instagram },
@@ -84,22 +82,23 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
         String(channel.value).trim() !== ""
       );
 
-      // 2. Logic Check
-      if (activeChannels.length === 0) {
-        alert("This seller hasn't provided contact links.");
-        return;
-      }
-
       if (activeChannels.length === 1) {
-        // IF ONLY ONE (Old items): Go directly to that handle
+        // Direct redirect for old items (only WhatsApp usually)
         openLink(activeChannels[0].id, activeChannels[0].value);
-      } else {
-        // IF MULTIPLE: Show the modal
+      } else if (activeChannels.length > 1) {
+        // Show modal for newer items
         setModalChannels(activeChannels);
         setShowContactModal(true);
+      } else {
+        // Final safety check for old database structure
+        if (item.whatsapp) {
+           openLink('whatsapp', item.whatsapp);
+        } else {
+           alert("This seller hasn't provided contact links.");
+        }
       }
     } catch (error) {
-      console.error("Chat redirection failed:", error);
+      console.error("Chat failure:", error);
     }
   };
 
@@ -145,7 +144,6 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
         </div>
       </div>
 
-      {/* MODAL SECTION - STABLE AND NON-SHAKING */}
       {showContactModal && (
         <div 
           className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl animate-in fade-in duration-300" 
