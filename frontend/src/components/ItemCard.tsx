@@ -14,6 +14,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
   const { addToCart } = useCart();
   const navigate = useNavigate();
   const [showContactModal, setShowContactModal] = useState(false);
+  const [modalChannels, setModalChannels] = useState<any[]>([]);
   
   const handleViewDetails = (e: React.MouseEvent) => {
     // If we clicked a button or the modal, don't trigger the detail view
@@ -45,7 +46,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
     let url = "";
     const message = encodeURIComponent(`Hello, I saw your "${item.stockName}" on Tradara. Is it still available?`);
 
-    switch(platform) {
+    switch(platform.toLowerCase()) {
       case 'whatsapp':
         let phone = value.replace(/\D/g, '');
         // If it starts with 0 (Nigerian format), convert to 234
@@ -65,26 +66,40 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
+  // UPDATED: PRO LOGIC FOR DIRECT REDIRECT VS MODAL
   const handleChatNow = (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
-    
-    // Filter to find how many valid handles exist
-    const channels = [
-      { id: 'whatsapp', value: item.whatsapp },
-      { id: 'instagram', value: item.instagram },
-      { id: 'facebook', value: item.facebook },
-      { id: 'tiktok', value: item.tiktok }
-    ].filter(c => c.value && c.value.trim() !== "");
 
-    if (channels.length === 1) {
-      // IF ONLY ONE (Old items): Go directly to that handle
-      openLink(channels[0].id, channels[0].value);
-    } else if (channels.length > 1) {
-      // IF MULTIPLE: Show the modal
-      setShowContactModal(true);
-    } else {
-      // Fallback for safety
-      if (item.whatsapp) openLink('whatsapp', item.whatsapp);
+    try {
+      // 1. Identify ONLY valid, working links (handles null/undefined for old items)
+      const activeChannels = [
+        { id: 'whatsapp', name: 'WhatsApp', value: item.whatsapp },
+        { id: 'instagram', name: 'Instagram', value: item.instagram },
+        { id: 'facebook', name: 'Facebook', value: item.facebook },
+        { id: 'tiktok', name: 'TikTok', value: item.tiktok }
+      ].filter(channel => 
+        channel.value !== null && 
+        channel.value !== undefined && 
+        String(channel.value).trim() !== ""
+      );
+
+      // 2. Logic Check
+      if (activeChannels.length === 0) {
+        alert("This seller hasn't provided contact links.");
+        return;
+      }
+
+      if (activeChannels.length === 1) {
+        // IF ONLY ONE (Old items): Go directly to that handle
+        openLink(activeChannels[0].id, activeChannels[0].value);
+      } else {
+        // IF MULTIPLE: Show the modal
+        setModalChannels(activeChannels);
+        setShowContactModal(true);
+      }
+    } catch (error) {
+      console.error("Chat redirection failed:", error);
     }
   };
 
@@ -130,7 +145,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
         </div>
       </div>
 
-      {/* MODAL SECTION - OPTIMIZED FOR MOBILE */}
+      {/* MODAL SECTION - STABLE AND NON-SHAKING */}
       {showContactModal && (
         <div 
           className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl animate-in fade-in duration-300" 
@@ -159,26 +174,24 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
              </div>
              
              <div className="space-y-4">
-                {item.whatsapp && item.whatsapp.trim() !== "" && (
-                  <button onClick={(e) => openLink('whatsapp', item.whatsapp, e)} className="w-full flex items-center justify-between p-5 bg-[#25D366] text-white rounded-[1.5rem] font-black uppercase text-[11px] tracking-[0.15em] hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-green-500/20">
-                    <span>WhatsApp</span> <MessageCircle size={20}/>
+                {modalChannels.map((channel) => (
+                  <button 
+                    key={channel.id}
+                    onClick={(e) => openLink(channel.id, channel.value, e)} 
+                    className={`w-full flex items-center justify-between p-5 text-white rounded-[1.5rem] font-black uppercase text-[11px] tracking-[0.15em] hover:brightness-110 active:scale-95 transition-all shadow-lg 
+                      ${channel.id === 'whatsapp' ? 'bg-[#25D366] shadow-green-500/20' : ''}
+                      ${channel.id === 'instagram' ? 'bg-gradient-to-r from-[#833AB4] via-[#FD1D1D] to-[#F56040] shadow-red-500/20' : ''}
+                      ${channel.id === 'facebook' ? 'bg-[#1877F2] shadow-blue-500/20' : ''}
+                      ${channel.id === 'tiktok' ? 'bg-black border border-white/20' : ''}
+                    `}
+                  >
+                    <span>{channel.name}</span>
+                    {channel.id === 'whatsapp' && <MessageCircle size={20}/>}
+                    {channel.id === 'instagram' && <Instagram size={20}/>}
+                    {channel.id === 'facebook' && <Facebook size={20}/>}
+                    {channel.id === 'tiktok' && <Video size={20}/>}
                   </button>
-                )}
-                {item.instagram && item.instagram.trim() !== "" && (
-                  <button onClick={(e) => openLink('instagram', item.instagram, e)} className="w-full flex items-center justify-between p-5 bg-gradient-to-r from-[#833AB4] via-[#FD1D1D] to-[#F56040] text-white rounded-[1.5rem] font-black uppercase text-[11px] tracking-[0.15em] hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-red-500/20">
-                    <span>Instagram</span> <Instagram size={20}/>
-                  </button>
-                )}
-                {item.facebook && item.facebook.trim() !== "" && (
-                  <button onClick={(e) => openLink('facebook', item.facebook, e)} className="w-full flex items-center justify-between p-5 bg-[#1877F2] text-white rounded-[1.5rem] font-black uppercase text-[11px] tracking-[0.15em] hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-blue-500/20">
-                    <span>Facebook</span> <Facebook size={20}/>
-                  </button>
-                )}
-                {item.tiktok && item.tiktok.trim() !== "" && (
-                  <button onClick={(e) => openLink('tiktok', item.tiktok, e)} className="w-full flex items-center justify-between p-5 bg-black text-white rounded-[1.5rem] font-black uppercase text-[11px] tracking-[0.15em] hover:brightness-110 active:scale-95 transition-all border border-white/20">
-                    <span>TikTok</span> <Video size={20}/>
-                  </button>
-                )}
+                ))}
              </div>
           </div>
         </div>
