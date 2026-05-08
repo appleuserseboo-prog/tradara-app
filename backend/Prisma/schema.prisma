@@ -12,6 +12,7 @@ model User {
   email      String   @unique
   password   String
   name       String
+  phone      String?  // <--- CRITICAL ADDITION: Needed for contact fallback
   isVerified Boolean  @default(false)
   items      Item[]
   createdAt  DateTime @default(now())
@@ -21,7 +22,7 @@ model Item {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
   stockName    String
   price        Float
-  currency     String @default("NGN")
+  currency     String   @default("NGN")
   description  String
   category     String   @default("Uncategorized")
   
@@ -30,12 +31,11 @@ model Item {
   city         String   @default("")
   area         String   @default("")
   
-  // --- Updated Contact Logic ---
-  whatsapp     String?  // Optional
-  facebook     String?  // Optional
-  tiktok       String?  // Optional
-  instagram    String?  // Optional
-  // ------------------------------
+  // Contact Logic
+  whatsapp     String? 
+  facebook     String? 
+  tiktok       String? 
+  instagram    String? 
 
   canBargain   Boolean  @default(true)
   images       String[] 

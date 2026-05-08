@@ -51,6 +51,44 @@ export const createItem = async (req: any, res: Response) => {
   }
 };
 
+export const getItems = async (req: any, res: Response) => {
+  try {
+    const { search, category, city, area } = req.query;
+
+    const items = await prisma.item.findMany({
+      where: {
+        AND: [
+          category && category !== 'All' ? { category: String(category) } : {},
+          search ? { stockName: { contains: String(search), mode: 'insensitive' } } : {},
+          city ? { city: { contains: String(city), mode: 'insensitive' } } : {},
+          area ? { area: { contains: String(area), mode: 'insensitive' } } : {},
+        ]
+      },
+      include: { 
+        seller: { 
+          select: { 
+            name: true, 
+            phone: true, 
+            isVerified: true 
+          } 
+        } 
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100 
+    });
+
+    // Formatting Logic: If item.whatsapp is null, use the seller's phone
+    const formatted = items.map(item => ({
+      ...item,
+      whatsapp: item.whatsapp || (item.seller as any)?.phone || null
+    }));
+
+    res.json(formatted);
+  } catch (error) {
+    res.status(500).json({ error: "Search failed" });
+  }
+};
+
 export const updateItem = async (req: any, res: Response) => {
   try {
     const { 
@@ -77,40 +115,7 @@ export const updateItem = async (req: any, res: Response) => {
     res.status(500).json({ error: "Update failed" });
   }
 };
-// src/controller/item.ts
 
-export const getItems = async (req: any, res: Response) => {
-  try {
-    const { search, category, city, area } = req.query;
-
-    const items = await prisma.item.findMany({
-      where: {
-        AND: [
-          category && category !== 'All' ? { category: String(category) } : {},
-          search ? { stockName: { contains: String(search), mode: 'insensitive' } } : {},
-          city ? { city: { contains: String(city), mode: 'insensitive' } } : {},
-          area ? { area: { contains: String(area), mode: 'insensitive' } } : {},
-        ]
-      },
-      include: { 
-        // CRITICAL: You MUST include 'phone' here
-        seller: { select: { name: true, phone: true } } 
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 100 
-    });
-
-    // This ensures old items without a 'whatsapp' field use the seller's phone
-    const formatted = items.map(item => ({
-      ...item,
-      whatsapp: item.whatsapp || (item.seller as any)?.phone || null
-    }));
-
-    res.json(formatted);
-  } catch (error) {
-    res.status(500).json({ error: "Search failed" });
-  }
-};
 export const getMyDashboardItems = async (req: any, res: Response) => {
   try {
     const items = await prisma.item.findMany({ 
