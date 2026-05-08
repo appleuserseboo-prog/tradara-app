@@ -77,14 +77,13 @@ export const updateItem = async (req: any, res: Response) => {
     res.status(500).json({ error: "Update failed" });
   }
 };
+// src/controller/item.ts
 
 export const getItems = async (req: any, res: Response) => {
   try {
     const { search, category, city, area } = req.query;
 
-    // Use 'any' on the findMany to prevent TypeScript from blocking the build
-    // while we handle the dynamic seller relation
-    const items = await (prisma.item as any).findMany({
+    const items = await prisma.item.findMany({
       where: {
         AND: [
           category && category !== 'All' ? { category: String(category) } : {},
@@ -94,32 +93,24 @@ export const getItems = async (req: any, res: Response) => {
         ]
       },
       include: { 
-        // We include the user (seller) to get their contact info
-        seller: true 
+        // CRITICAL: You MUST include 'phone' here
+        seller: { select: { name: true, phone: true } } 
       },
       orderBy: { createdAt: 'desc' },
       take: 100 
     });
 
-    // BACKWARD COMPATIBILITY LOGIC
-    const formatted = items.map((item: any) => {
-      // Look for the phone number in every possible place it could hide
-      const sellerContact = item.seller?.whatsapp || item.seller?.phoneNumber || item.seller?.phone;
-      
-      return {
-        ...item,
-        // If the item itself doesn't have a whatsapp link, use the seller's contact
-        whatsapp: item.whatsapp || sellerContact || null
-      };
-    });
+    // This ensures old items without a 'whatsapp' field use the seller's phone
+    const formatted = items.map(item => ({
+      ...item,
+      whatsapp: item.whatsapp || (item.seller as any)?.phone || null
+    }));
 
-    res.json(formatted || []);
+    res.json(formatted);
   } catch (error) {
-    console.error("Fetch Error:", error);
     res.status(500).json({ error: "Search failed" });
   }
 };
-
 export const getMyDashboardItems = async (req: any, res: Response) => {
   try {
     const items = await prisma.item.findMany({ 
