@@ -35,25 +35,20 @@ const AppContent: React.FC = () => {
     navigate("/"); 
   };
 
-  
-const handleLogout = () => {
-    // 1. Clear session data
+  const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     setToken(null);
     setUser(null);
-    
-    // 2. ONLY use navigate. 
-    // Do NOT use window.location.assign or window.location.href
     navigate("/login"); 
   };
+
   return (
     <AppContext.Provider value={{ token, user, searchQuery, setSearchQuery, isDarkMode }}>
-      <div className={`${isDarkMode ? 'dark bg-slate-950 text-white' : 'bg-[#F4F7FF] text-slate-900'} min-h-screen transition-colors duration-500 font-sans`}>
+      <div className={`${isDarkMode ? 'dark bg-slate-950 text-white' : 'bg-[#F4F7FF] text-slate-900'} min-h-screen transition-colors duration-500 font-sans overflow-x-hidden`}>
         
-        <nav className={`fixed top-0 w-full z-50 border-b ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} backdrop-blur-md`}>
+        <nav className={`fixed top-0 w-full z-[100] border-b ${isDarkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-white/80 border-slate-200'} backdrop-blur-xl`}>
           <div className="max-w-7xl mx-auto px-2 h-16 flex items-center justify-between gap-1">
-            
             <Link to="/" className={`flex flex-col items-center justify-center min-w-[50px] transition-all duration-300 ${isActive('/') ? 'text-blue-600 scale-110' : 'text-slate-500 hover:text-blue-400'}`}>
               <HomeIcon className="w-5 h-5" strokeWidth={isActive('/') ? 3 : 2} />
               <span className={`text-[10px] uppercase mt-0.5 ${isActive('/') ? 'font-black' : 'font-medium'}`}>Home</span>
@@ -70,12 +65,10 @@ const handleLogout = () => {
                   <PlusCircle className="w-5 h-5" strokeWidth={isActive('/add-product') ? 3 : 2} />
                   <span className={`text-[10px] uppercase mt-0.5 ${isActive('/add-product') ? 'font-black' : 'font-medium'}`}>Sell</span>
                 </Link>
-                
                 <Link to="/dashboard" className={`flex flex-col items-center justify-center min-w-[50px] transition-all duration-300 ${isActive('/dashboard') ? 'text-blue-600 scale-110' : 'text-slate-500 hover:text-blue-400'}`}>
                   <LayoutDashboard className="w-5 h-5" strokeWidth={isActive('/dashboard') ? 3 : 2} />
                   <span className={`text-[10px] uppercase mt-0.5 ${isActive('/dashboard') ? 'font-black' : 'font-medium'}`}>Menu</span>
                 </Link>
-
                 <button onClick={handleLogout} className="flex flex-col items-center justify-center min-w-[50px] text-red-500 hover:text-red-700 transition-all">
                   <LogOut className="w-5 h-5" />
                   <span className="text-[10px] font-medium mt-0.5">Exit</span>
@@ -110,8 +103,8 @@ const handleLogout = () => {
             <Route path="/cart" element={<Cart />} />
             <Route path="/add-product" element={token ? <AddItem /> : <Navigate to="/login" />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
-            <Route path="*" element={<Navigate to="/" />} />
             <Route path="/product/:id" element={<ProductDetail />} />
+            <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>
       </div>
