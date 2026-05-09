@@ -1,50 +1,94 @@
 datasource db {
-  provider = "mongodb"
-  url      = env("DATABASE_URL")
+
+provider = "mongodb"
+
+url = env("DATABASE_URL")
+
 }
+
 
 generator client {
-  provider = "prisma-client-js"
+
+provider = "prisma-client-js"
+
 }
+
 
 model User {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  email      String   @unique
-  password   String
-  name       String
-  phone      String?  // CRITICAL: Acts as the fallback for WhatsApp
-  isVerified Boolean  @default(false)
-  items      Item[]
-  createdAt  DateTime @default(now())
+
+id String @id @default(auto()) @map("_id") @db.ObjectId
+
+email String @unique
+
+password String
+
+name String
+
+phone String? // <--- CRITICAL ADDITION: Needed for contact fallback
+
+isVerified Boolean @default(false)
+
+items Item[]
+
+createdAt DateTime @default(now())
+
 }
+
+
 
 model Item {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  stockName    String
-  price        Float
-  currency     String   @default("NGN")
-  description  String
-  category     String   @default("Uncategorized")
-  
-  // Global Location Logic
-  country      String   @default("Nigeria")
-  city         String   @default("")
-  area         String   @default("")
-  
-  // Contact Logic
-  whatsapp     String? 
-  facebook     String? 
-  tiktok       String? 
-  instagram    String? 
 
-  canBargain   Boolean  @default(true)
-  images       String[] 
-  
-  userId       String   @db.ObjectId
-  seller       User     @relation(fields: [userId], references: [id]) // Standardized Relation
-  createdAt    DateTime @default(now())
+id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  @@index([stockName]) 
-  @@index([category])
-  @@index([userId])
-}
+stockName String
+
+price Float
+
+currency String @default("NGN")
+
+description String
+
+category String @default("Uncategorized")
+
+
+// Global Location Logic
+
+country String @default("Nigeria")
+
+city String @default("")
+
+area String @default("")
+
+
+// Contact Logic
+
+whatsapp String?
+
+facebook String?
+
+tiktok String?
+
+instagram String?
+
+
+
+canBargain Boolean @default(true)
+
+images String[]
+
+
+userId String @db.ObjectId
+
+seller User @relation(fields: [userId], references: [id])
+
+createdAt DateTime @default(now())
+
+
+
+@@index([stockName])
+
+@@index([category])
+
+@@index([userId])
+
+} 
