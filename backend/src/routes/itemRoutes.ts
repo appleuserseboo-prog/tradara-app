@@ -73,5 +73,6 @@ router.get('/:id', async (req, res) => {
 router.post('/', authMiddleware, upload.array('images', 5), createItem);
 router.delete('/:id', authMiddleware, deleteItem);
 router.put('/:id', authMiddleware, updateItem); 
+router.put('/:id', authMiddleware, upload.array('images', 5), updateItem);
 
 export default router;
