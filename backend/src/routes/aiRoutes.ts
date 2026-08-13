@@ -5,12 +5,13 @@ import {
   handleChatMessage,
   getNegotiationHistory,
 } from '../controller/aiController';
-import { authenticateToken } from '../middleware/authMiddleware';
+// Change 'authenticateToken' to 'authMiddleware'
+import { authMiddleware } from '../middleware/authMiddleware';
 
 const router = Router();
 
 // Seller AI Configuration Endpoints
-router.post('/config/:itemId', authenticateToken, upsertProductAiConfig);
+router.post('/config/:itemId', authMiddleware, upsertProductAiConfig);
 router.get('/config/:itemId', getProductAiConfig);
 
 // Buyer AI Interaction Endpoints
