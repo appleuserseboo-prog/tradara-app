@@ -137,7 +137,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
           
           <div className="mt-auto flex flex-col gap-2 pt-2">
             <button onClick={handleAskAi} className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-2.5 rounded-2xl font-black text-[10px] flex items-center justify-center gap-1.5 hover:brightness-110 transition-all shadow-md shadow-indigo-500/20 uppercase tracking-widest">
-              <Bot size={14} /> ✨ ASK AI / BARGAIN
+              <Bot size={14} />  ASK DIRECTLY HERE
             </button>
             <div className="flex gap-2">
               <button onClick={handleChatNow} className="flex-1 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white py-3 rounded-2xl font-bold text-[10px] flex items-center justify-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700 uppercase tracking-widest">

@@ -188,7 +188,7 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
             </div>
             <div>
               <h2 className="font-black text-white text-base tracking-wide flex items-center gap-2">
-                Ask AI Assistant
+                Ask DIRECTLY
                 <span className="text-[10px] font-bold bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/30">
                   {isHumanHandover ? 'HUMAN AGENT' : 'AI POWERED'}
                 </span>
