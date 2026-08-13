@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { MapPin, ShoppingCart, ArrowLeft } from 'lucide-react';
+import { MapPin, ShoppingCart, ArrowLeft, Sparkles } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { AiNegotiationChatModal } from '../components/AiNegotiationChatModal';
 
 export const ProductDetail: React.FC = () => {
   const { id } = useParams();
@@ -10,12 +11,12 @@ export const ProductDetail: React.FC = () => {
   const [product, setProduct] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchProduct = async () => {
       setLoading(true);
       try {
-        // Changed endpoint to /items/ to match your backend index.ts
         const response = await fetch(`https://tradara-backend.onrender.com/api/items/${id}`);
         
         if (!response.ok) {
@@ -33,6 +34,15 @@ export const ProductDetail: React.FC = () => {
     };
     fetchProduct();
   }, [id]);
+
+  const handleAddToCartWithDiscount = (discountedPrice: number) => {
+    if (product) {
+      addToCart({
+        ...product,
+        price: discountedPrice,
+      });
+    }
+  };
 
   if (loading) return <div className="pt-24 text-center font-black">LOADING PRODUCT...</div>;
   if (error || !product) return <div className="pt-24 text-center font-black text-red-500 uppercase tracking-widest">PRODUCT NOT FOUND</div>;
@@ -63,7 +73,7 @@ export const ProductDetail: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-2 text-slate-500 font-bold uppercase text-sm bg-slate-100 dark:bg-white/5 w-fit px-4 py-2 rounded-xl">
-            <MapPin size={18} /> {product.city}{product.area ?` , ${product.area}`: ''}
+            <MapPin size={18} /> {product.city}{product.area ? ` , ${product.area}` : ''}
           </div>
 
           <div className="space-y-2">
@@ -73,7 +83,14 @@ export const ProductDetail: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex gap-4 mt-auto">
+          <div className="flex flex-col sm:flex-row gap-4 mt-auto">
+            <button 
+              onClick={() => setIsAiModalOpen(true)}
+              className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white py-5 rounded-[2rem] font-black flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-xl shadow-purple-600/20 active:scale-95 border border-white/10"
+            >
+              <Sparkles size={20} className="animate-pulse" /> ✨ Ask AI About This Product
+            </button>
+
             <button 
               onClick={() => addToCart(product)}
               className="flex-1 bg-blue-600 text-white py-5 rounded-[2rem] font-black flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-xl shadow-blue-600/20 active:scale-95"
@@ -83,6 +100,14 @@ export const ProductDetail: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* AI Assistant Modal */}
+      <AiNegotiationChatModal
+        isOpen={isAiModalOpen}
+        onClose={() => setIsAiModalOpen(false)}
+        product={product}
+        onAddToCartWithDiscount={handleAddToCartWithDiscount}
+      />
     </div>
   );
 };

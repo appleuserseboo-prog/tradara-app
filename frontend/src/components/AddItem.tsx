@@ -1,9 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  PlusCircle, Camera, MapPin, 
-  MessageCircle, X, Globe, Landmark, CircleDollarSign,
-  Instagram, Facebook, Video
+  PlusCircle, Camera, 
+  MessageCircle, X, Globe, CircleDollarSign,
+  Instagram, Facebook, Video, Bot, ChevronDown, ChevronUp, Sparkles
 } from 'lucide-react';
 import API from '../services/api';
 
@@ -12,6 +12,7 @@ export const AddItem: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAiAccordion, setShowAiAccordion] = useState(false);
 
   const [formData, setFormData] = useState({
     stockName: '',
@@ -27,7 +28,41 @@ export const AddItem: React.FC = () => {
     whatsapp: '',
     facebook: '',
     tiktok: '',
-    instagram: ''
+    instagram: '',
+
+    // 30+ AI Sales Assistant Knowledge Fields
+    autoNegotiateEnabled: true,
+    minimumPrice: '',
+    targetPrice: '',
+    walkawayPrice: '',
+    discountStepPercent: '5',
+    maxDiscountRounds: '3',
+    bulkMinQuantity: '',
+    bulkDiscountPercent: '',
+    acceptsTradeIn: false,
+    tradeInTerms: '',
+    bundledItems: '',
+    bundleDiscount: '',
+    acceptedPayments: 'cash, transfer',
+    cashDiscountPercent: '',
+    freeDeliveryEligible: false,
+    deliveryFeeEstimate: '',
+    pickupAddress: '',
+    dispatchTimeline: '',
+    stockCount: '1',
+    urgencyLevel: 'normal',
+    expirationDate: '',
+    warrantyPeriod: '',
+    returnPolicyDays: '0',
+    productCondition: 'Brand New',
+    knownFlaws: '',
+    specifications: '',
+    faqKnowledgeBase: '',
+    minBuyerRating: '',
+    aiTone: 'Professional and Friendly',
+    greetingMessage: '',
+    escalateOnThreshold: '',
+    sellerContactPhone: ''
   });
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -82,7 +117,7 @@ export const AddItem: React.FC = () => {
     data.append('area', formData.area);
     data.append('canBargain', String(formData.canBargain));
     
-    // Append new social fields
+    // Append social fields
     data.append('whatsapp', formData.whatsapp);
     data.append('facebook', formData.facebook);
     data.append('tiktok', formData.tiktok);
@@ -93,7 +128,48 @@ export const AddItem: React.FC = () => {
     });
 
     try {
-      await API.post('/items', data);
+      const response = await API.post('/items', data);
+      const createdItem = response.data;
+      const itemId = createdItem.id || createdItem._id;
+
+      // Save AI Configuration if configured
+      if (itemId && (formData.minimumPrice || formData.targetPrice || formData.faqKnowledgeBase)) {
+        await API.post(`/ai/config/${itemId}`, {
+          autoNegotiateEnabled: formData.autoNegotiateEnabled,
+          minimumPrice: formData.minimumPrice ? Number(formData.minimumPrice) : Number(formData.price),
+          targetPrice: formData.targetPrice ? Number(formData.targetPrice) : Number(formData.price),
+          walkawayPrice: formData.walkawayPrice ? Number(formData.walkawayPrice) : Number(formData.price) * 0.8,
+          discountStepPercent: Number(formData.discountStepPercent),
+          maxDiscountRounds: Number(formData.maxDiscountRounds),
+          bulkMinQuantity: formData.bulkMinQuantity ? Number(formData.bulkMinQuantity) : null,
+          bulkDiscountPercent: formData.bulkDiscountPercent ? Number(formData.bulkDiscountPercent) : null,
+          acceptsTradeIn: formData.acceptsTradeIn,
+          tradeInTerms: formData.tradeInTerms,
+          bundledItems: formData.bundledItems,
+          bundleDiscount: formData.bundleDiscount ? Number(formData.bundleDiscount) : null,
+          acceptedPayments: formData.acceptedPayments.split(',').map(s => s.trim()),
+          cashDiscountPercent: formData.cashDiscountPercent ? Number(formData.cashDiscountPercent) : null,
+          freeDeliveryEligible: formData.freeDeliveryEligible,
+          deliveryFeeEstimate: formData.deliveryFeeEstimate ? Number(formData.deliveryFeeEstimate) : null,
+          pickupAddress: formData.pickupAddress,
+          dispatchTimeline: formData.dispatchTimeline,
+          stockCount: Number(formData.stockCount),
+          urgencyLevel: formData.urgencyLevel,
+          expirationDate: formData.expirationDate ? new Date(formData.expirationDate) : null,
+          warrantyPeriod: formData.warrantyPeriod,
+          returnPolicyDays: Number(formData.returnPolicyDays),
+          productCondition: formData.productCondition,
+          knownFlaws: formData.knownFlaws,
+          specifications: formData.specifications,
+          faqKnowledgeBase: formData.faqKnowledgeBase,
+          minBuyerRating: formData.minBuyerRating ? Number(formData.minBuyerRating) : null,
+          aiTone: formData.aiTone,
+          greetingMessage: formData.greetingMessage,
+          escalateOnThreshold: formData.escalateOnThreshold ? Number(formData.escalateOnThreshold) : null,
+          sellerContactPhone: formData.sellerContactPhone,
+        });
+      }
+
       navigate('/dashboard');
     } catch (err) {
       setError("Upload failed. Check your network or server terminal.");
@@ -191,6 +267,115 @@ export const AddItem: React.FC = () => {
                 <option value="Others">Others</option>
               </select>
             </div>
+          </div>
+
+          {/* AI SALES ASSISTANT SETUP ACCORDION */}
+          <div className="bg-gradient-to-br from-indigo-900/10 via-purple-900/10 to-blue-900/10 dark:from-indigo-950/40 dark:to-purple-950/40 p-8 rounded-[3rem] border border-indigo-500/30 shadow-lg">
+            <button
+              type="button"
+              onClick={() => setShowAiAccordion(!showAiAccordion)}
+              className="w-full flex items-center justify-between text-left focus:outline-none"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-gradient-to-tr from-indigo-600 to-purple-600 text-white rounded-2xl shadow-md">
+                  <Bot size={24} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-black dark:text-white uppercase tracking-tight">AI Sales Assistant Knowledge Base</h3>
+                    <span className="text-[9px] bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <Sparkles size={10} /> 30+ RULES
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Configure auto-negotiation, warranty, delivery, FAQs, and trade-in rules.</p>
+                </div>
+              </div>
+              <div className="p-2 bg-slate-200 dark:bg-slate-800 rounded-full dark:text-white">
+                {showAiAccordion ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+              </div>
+            </button>
+
+            {showAiAccordion && (
+              <div className="mt-8 space-y-6 pt-6 border-t border-indigo-500/20 animate-in fade-in duration-300">
+                {/* 1. Core Pricing Strategy */}
+                <div>
+                  <h4 className="text-xs font-black uppercase text-indigo-400 tracking-wider mb-4">1. Core Pricing & Negotiation Strategy</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Target Price ({formData.currency})</label>
+                      <input name="targetPrice" type="number" value={formData.targetPrice} placeholder={formData.price || '0'} onChange={handleChange} className="w-full bg-white dark:bg-slate-900 rounded-2xl p-4 mt-1 outline-none text-sm dark:text-white font-bold" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Minimum Price ({formData.currency})</label>
+                      <input name="minimumPrice" type="number" value={formData.minimumPrice} placeholder="Lowest acceptable price" onChange={handleChange} className="w-full bg-white dark:bg-slate-900 rounded-2xl p-4 mt-1 outline-none text-sm dark:text-white font-bold" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Walkaway Floor ({formData.currency})</label>
+                      <input name="walkawayPrice" type="number" value={formData.walkawayPrice} placeholder="Hard minimum threshold" onChange={handleChange} className="w-full bg-white dark:bg-slate-900 rounded-2xl p-4 mt-1 outline-none text-sm dark:text-white font-bold" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Volume & Trade-In Policies */}
+                <div>
+                  <h4 className="text-xs font-black uppercase text-indigo-400 tracking-wider mb-4">2. Volume Discounts & Trade-ins</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Bulk Min Quantity</label>
+                      <input name="bulkMinQuantity" type="number" value={formData.bulkMinQuantity} placeholder="e.g. 5" onChange={handleChange} className="w-full bg-white dark:bg-slate-900 rounded-2xl p-4 mt-1 outline-none text-sm dark:text-white font-bold" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Bulk Discount (%)</label>
+                      <input name="bulkDiscountPercent" type="number" value={formData.bulkDiscountPercent} placeholder="e.g. 10" onChange={handleChange} className="w-full bg-white dark:bg-slate-900 rounded-2xl p-4 mt-1 outline-none text-sm dark:text-white font-bold" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Trade-in Terms / Guidelines</label>
+                      <input name="tradeInTerms" value={formData.tradeInTerms} placeholder="What devices or items do you accept for trade-ins?" onChange={handleChange} className="w-full bg-white dark:bg-slate-900 rounded-2xl p-4 mt-1 outline-none text-sm dark:text-white font-bold" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Delivery & Warranty */}
+                <div>
+                  <h4 className="text-xs font-black uppercase text-indigo-400 tracking-wider mb-4">3. Delivery, Pickup & Warranty</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Pickup Address</label>
+                      <input name="pickupAddress" value={formData.pickupAddress} placeholder="Store location for pickup" onChange={handleChange} className="w-full bg-white dark:bg-slate-900 rounded-2xl p-4 mt-1 outline-none text-sm dark:text-white font-bold" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Warranty Period</label>
+                      <input name="warrantyPeriod" value={formData.warrantyPeriod} placeholder="e.g. 6 Months Warranty" onChange={handleChange} className="w-full bg-white dark:bg-slate-900 rounded-2xl p-4 mt-1 outline-none text-sm dark:text-white font-bold" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Condition</label>
+                      <select name="productCondition" value={formData.productCondition} onChange={handleChange} className="w-full bg-white dark:bg-slate-900 rounded-2xl p-4 mt-1 outline-none text-sm dark:text-white font-bold">
+                        <option value="Brand New">Brand New</option>
+                        <option value="Open Box">Open Box</option>
+                        <option value="Refurbished">Refurbished</option>
+                        <option value="Used - Like New">Used - Like New</option>
+                        <option value="Used - Fair">Used - Fair</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Specifications & Knowledge Base */}
+                <div>
+                  <h4 className="text-xs font-black uppercase text-indigo-400 tracking-wider mb-4">4. Specifications & FAQ Knowledge Base</h4>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Detailed Technical Specifications</label>
+                      <textarea name="specifications" value={formData.specifications} rows={2} placeholder="RAM, Storage, Battery capacity, Material, Dimensions..." onChange={handleChange} className="w-full bg-white dark:bg-slate-900 rounded-2xl p-4 mt-1 outline-none text-sm dark:text-white font-medium" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Frequently Asked Questions (FAQ) Answers</label>
+                      <textarea name="faqKnowledgeBase" value={formData.faqKnowledgeBase} rows={3} placeholder="Q: Is receipt included? A: Yes. Q: How fast is delivery? A: Same day within Ogbomoso." onChange={handleChange} className="w-full bg-white dark:bg-slate-900 rounded-2xl p-4 mt-1 outline-none text-sm dark:text-white font-medium" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* MULTI-CONTACT SECTION */}

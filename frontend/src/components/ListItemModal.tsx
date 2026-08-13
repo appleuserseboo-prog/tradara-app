@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { X, Camera } from 'lucide-react';
-import  API from '../services/api'; // Matches the fix in api.ts
+import { X, Camera, Bot, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
+import API from '../services/api';
 
 interface ListItemModalProps {
   onClose: () => void;
@@ -12,16 +12,24 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({ onClose, onItemCre
   const [loading, setLoading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+  const [showAiConfig, setShowAiConfig] = useState(false);
   
   const [formData, setFormData] = useState({
     stockName: '',
     price: '',
+    currency: '₦',
     description: '',
     category: 'Electronics',
     country: '',
     city: '',
     area: '',
-    contactLink: ''
+    whatsapp: '',
+    
+    // AI Knowledge Base Quick Fields
+    minimumPrice: '',
+    targetPrice: '',
+    warrantyPeriod: '',
+    faqKnowledgeBase: ''
   });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -38,10 +46,31 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({ onClose, onItemCre
     setLoading(true);
     try {
       const data = new FormData();
-      Object.entries(formData).forEach(([key, value]) => data.append(key, String(value)));
+      data.append('stockName', formData.stockName);
+      data.append('price', formData.price);
+      data.append('currency', formData.currency);
+      data.append('description', formData.description);
+      data.append('category', formData.category);
+      data.append('country', formData.country);
+      data.append('city', formData.city);
+      data.append('area', formData.area);
+      data.append('whatsapp', formData.whatsapp);
+
       selectedFiles.forEach(file => data.append('images', file));
 
-      await API.post('/items', data);
+      const response = await API.post('/items', data);
+      const itemId = response.data?.id || response.data?._id;
+
+      if (itemId && (formData.minimumPrice || formData.faqKnowledgeBase)) {
+        await API.post(`/ai/config/${itemId}`, {
+          targetPrice: formData.targetPrice ? Number(formData.targetPrice) : Number(formData.price),
+          minimumPrice: formData.minimumPrice ? Number(formData.minimumPrice) : Number(formData.price),
+          walkawayPrice: formData.minimumPrice ? Number(formData.minimumPrice) * 0.9 : Number(formData.price) * 0.8,
+          warrantyPeriod: formData.warrantyPeriod,
+          faqKnowledgeBase: formData.faqKnowledgeBase,
+        });
+      }
+
       onItemCreated();
       onClose();
     } catch (err) {
@@ -79,8 +108,38 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({ onClose, onItemCre
             <input placeholder="Item Name" className="w-full p-4 bg-slate-100 dark:bg-white/5 rounded-2xl outline-none dark:text-white" onChange={e => setFormData({...formData, stockName: e.target.value})} />
             
             <div className="grid grid-cols-2 gap-4">
+              <input placeholder="Price" type="number" className="p-4 bg-slate-100 dark:bg-white/5 rounded-2xl outline-none dark:text-white" onChange={e => setFormData({...formData, price: e.target.value})} />
+              <input placeholder="WhatsApp Number" className="p-4 bg-slate-100 dark:bg-white/5 rounded-2xl outline-none dark:text-white" onChange={e => setFormData({...formData, whatsapp: e.target.value})} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <input placeholder="Country" className="p-4 bg-slate-100 dark:bg-white/5 rounded-2xl outline-none dark:text-white" onChange={e => setFormData({...formData, country: e.target.value})} />
               <input placeholder="City" className="p-4 bg-slate-100 dark:bg-white/5 rounded-2xl outline-none dark:text-white" onChange={e => setFormData({...formData, city: e.target.value})} />
+            </div>
+
+            {/* AI Sales Assistant Toggle */}
+            <div className="p-4 bg-indigo-50 dark:bg-indigo-950/30 rounded-2xl border border-indigo-200 dark:border-indigo-800">
+              <button
+                type="button"
+                onClick={() => setShowAiConfig(!showAiConfig)}
+                className="w-full flex items-center justify-between text-left"
+              >
+                <div className="flex items-center gap-2">
+                  <Bot className="text-indigo-600 dark:text-indigo-400" size={18} />
+                  <span className="text-xs font-black uppercase text-indigo-900 dark:text-indigo-200 flex items-center gap-1">
+                    AI Auto-Negotiator & FAQ <Sparkles size={12} />
+                  </span>
+                </div>
+                {showAiConfig ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </button>
+
+              {showAiConfig && (
+                <div className="mt-4 space-y-3 pt-3 border-t border-indigo-200 dark:border-indigo-800">
+                  <input placeholder="Minimum Acceptable Price" type="number" className="w-full p-3 bg-white dark:bg-slate-900 rounded-xl text-xs outline-none dark:text-white" onChange={e => setFormData({...formData, minimumPrice: e.target.value})} />
+                  <input placeholder="Warranty (e.g., 6 Months)" className="w-full p-3 bg-white dark:bg-slate-900 rounded-xl text-xs outline-none dark:text-white" onChange={e => setFormData({...formData, warrantyPeriod: e.target.value})} />
+                  <textarea placeholder="FAQ Answer (e.g. Receipt provided, delivery timing...)" rows={2} className="w-full p-3 bg-white dark:bg-slate-900 rounded-xl text-xs outline-none dark:text-white" onChange={e => setFormData({...formData, faqKnowledgeBase: e.target.value})} />
+                </div>
+              )}
             </div>
 
             <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold">

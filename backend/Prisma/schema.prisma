@@ -1,94 +1,163 @@
 datasource db {
-
-provider = "mongodb"
-
-url = env("DATABASE_URL")
-
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
 }
-
 
 generator client {
-
-provider = "prisma-client-js"
-
+  provider = "prisma-client-js"
 }
-
 
 model User {
-
-id String @id @default(auto()) @map("_id") @db.ObjectId
-
-email String @unique
-
-password String
-
-name String
-
-phone String? // <--- CRITICAL ADDITION: Needed for contact fallback
-
-isVerified Boolean @default(false)
-
-items Item[]
-
-createdAt DateTime @default(now())
-
+  id                   String                 @id @default(auto()) @map("_id") @db.ObjectId
+  email                String                 @unique
+  password             String
+  name                 String
+  phone                String? // <--- CRITICAL ADDITION: Needed for contact fallback
+  isVerified           Boolean                @default(false)
+  items                Item[]
+  createdAt            DateTime               @default(now())
+  AiNegotiationSession AiNegotiationSession[]
 }
 
-
-
 model Item {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  stockName   String
+  price       Float
+  currency    String   @default("NGN")
+  description String
+  category    String   @default("Uncategorized")
 
-id String @id @default(auto()) @map("_id") @db.ObjectId
+  // Global Location Logic
+  country     String   @default("Nigeria")
+  city        String   @default("")
+  area        String   @default("")
 
-stockName String
+  // Contact Logic
+  whatsapp    String?
+  facebook    String?
+  tiktok      String?
+  instagram   String?
 
-price Float
+  canBargain  Boolean  @default(true)
+  images      String[]
 
-currency String @default("NGN")
+  userId      String   @db.ObjectId
+  seller      User     @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
 
-description String
+  // AI & Negotiation Relations
+  aiConfig              ProductAiConfig?
+  aiNegotiationSessions AiNegotiationSession[]
 
-category String @default("Uncategorized")
+  @@index([stockName])
+  @@index([category])
+  @@index([userId])
+}
 
+model ProductAiConfig {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  itemId String @unique @db.ObjectId
+  item   Item   @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
-// Global Location Logic
+  // 1. Core Pricing & Flexibility Strategy
+  autoNegotiateEnabled Boolean @default(true)
+  minimumPrice         Float
+  targetPrice          Float
+  walkawayPrice        Float
+  discountStepPercent  Float   @default(5.0)
+  maxDiscountRounds    Int     @default(3)
 
-country String @default("Nigeria")
+  // 2. Quantity & Volume Discounts
+  bulkMinQuantity      Int?
+  bulkDiscountPercent  Float?
 
-city String @default("")
+  // 3. Trade-In & Exchange Policy
+  acceptsTradeIn       Boolean @default(false)
+  tradeInTerms         String?
 
-area String @default("")
+  // 4. Bundling & Upselling
+  bundledItems         String?
+  bundleDiscount       Float?
 
+  // 5. Payment Methods & Cash Incentives
+  acceptedPayments     String[] @default(["cash", "transfer"])
+  cashDiscountPercent  Float?
 
-// Contact Logic
+  // 6. Delivery, Pickup & Logistics
+  freeDeliveryEligible Boolean  @default(false)
+  deliveryFeeEstimate  Float?
+  pickupAddress        String?
+  dispatchTimeline     String?
 
-whatsapp String?
+  // 7. Urgency & Stock Pressure
+  stockCount           Int      @default(1)
+  urgencyLevel         String   @default("normal") // low, normal, high, clearance
+  expirationDate       DateTime?
 
-facebook String?
+  // 8. Warranty & Return Policy
+  warrantyPeriod       String?
+  returnPolicyDays     Int?     @default(0)
 
-tiktok String?
+  // 9. Condition & Inspection Details
+  productCondition     String   @default("Brand New") // Brand New, Open Box, Refurbished, Used - Like New, Used - Fair
+  knownFlaws           String?
 
-instagram String?
+  // 10. Product Specs & Features
+  specifications       String?
 
+  // 11. Frequently Asked Questions (FAQ)
+  faqKnowledgeBase     String?
 
+  // 12. Buyer Qualification Rules
+  minBuyerRating       Float?
 
-canBargain Boolean @default(true)
+  // 13. AI Persona & Tone
+  aiTone               String   @default("Professional and Friendly") // Friendly, Firm, Enthusiastic, Corporate
+  greetingMessage      String?
 
-images String[]
+  // 14. Escalation & Human Handover
+  escalateOnThreshold  Float?
+  sellerContactPhone   String?
 
+  // 15. Analytics Tracking
+  totalNegotiations    Int      @default(0)
+  successfulDeals      Int      @default(0)
 
-userId String @db.ObjectId
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
 
-seller User @relation(fields: [userId], references: [id])
+model AiNegotiationSession {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  itemId       String   @db.ObjectId
+  item         Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
-createdAt DateTime @default(now())
+  buyerId      String?  @db.ObjectId
+  buyer        User?    @relation(fields: [buyerId], references: [id])
+  buyerSession String   // Session ID for anonymous buyers
 
+  currentOffer Float?
+  agreedPrice  Float?
+  status       String   @default("active") // active, agreed, rejected, escalated
+  roundCount   Int      @default(0)
 
+  messages     AiChatMessage[]
 
-@@index([stockName])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-@@index([category])
+  @@index([itemId])
+  @@index([buyerSession])
+}
 
-@@index([userId])
+model AiChatMessage {
+  id        String               @id @default(auto()) @map("_id") @db.ObjectId
+  sessionId String               @db.ObjectId
+  session   AiNegotiationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
-} 
+  sender    String               // "buyer" | "ai" | "seller"
+  message   String
+  offerMade Float?
+
+  createdAt DateTime             @default(now())
+}
