@@ -88,7 +88,7 @@ export const ProductDetail: React.FC = () => {
               onClick={() => setIsAiModalOpen(true)}
               className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white py-5 rounded-[2rem] font-black flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-xl shadow-purple-600/20 active:scale-95 border border-white/10"
             >
-              <Sparkles size={20} className="animate-pulse" /> ✨ Ask AI About This Product
+              <Sparkles size={20} className="animate-pulse" /> Ask DIRECTLY AI About This Product
             </button>
 
             <button 
