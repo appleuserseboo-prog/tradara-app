@@ -54,7 +54,7 @@ export const getProductAiConfig = async (req: Request, res: Response) => {
 
 export const handleChatMessage = async (req: Request, res: Response) => {
   try {
-    const { itemId, buyerSession, buyerId, message, offeredPrice } = req.body;
+    const { itemId, buyerSession, buyerId, message, offeredPrice, quantity } = req.body;
 
     if (!itemId || !buyerSession || !message) {
       return res.status(400).json({ error: 'itemId, buyerSession, and message are required fields.' });
@@ -66,6 +66,7 @@ export const handleChatMessage = async (req: Request, res: Response) => {
       buyerId,
       message,
       offeredPrice: offeredPrice ? Number(offeredPrice) : undefined,
+      quantity: quantity ? Number(quantity) : 1,
     });
 
     return res.status(200).json({ success: true, data: result });

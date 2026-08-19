@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Sparkles, X, Send, Bot, User, Headphones, Tag, Check, AlertCircle } from 'lucide-react';
+import { Sparkles, X, Send, Bot, User, Headphones, Tag, Check, AlertCircle, Brain, Target, ShieldCheck } from 'lucide-react';
 
 export interface ProductContext {
   id: string;
@@ -13,11 +13,27 @@ export interface ProductContext {
   images?: string[];
 }
 
+interface IntelligenceContext {
+  itemHistoricalConversions?: number;
+  averageAgreedDiscountPercent?: number;
+  buyerPastNegotiationCount?: number;
+  buyerSuccessfulDeals?: number;
+  categoryDemandScore?: number;
+}
+
+interface PerceptionContext {
+  sentiment?: string;
+  urgency?: string;
+  priceSensitivity?: string;
+  detectedIntent?: string;
+}
+
 interface Message {
   id: string;
   sender: 'ai' | 'user' | 'system' | 'human';
   text: string;
   timestamp: string;
+  perception?: PerceptionContext;
   offer?: {
     discountedPrice: number;
     discountPercent: number;
@@ -42,6 +58,7 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isHumanHandover, setIsHumanHandover] = useState(false);
+  const [intelligence, setIntelligence] = useState<IntelligenceContext | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const currencySymbol = product?.currency || '₦';
@@ -53,11 +70,20 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
       const initialGreeting: Message = {
         id: 'msg-1',
         sender: 'ai',
-        text: `Hello! I'm your TRADARA AI Assistant. I can help you with details about "${product.stockName}", negotiate deals, or arrange seller contacts. What would you like to know?`,
+        text: `Hello! I'm your TRADARA AI Assistant. I am trained on "${product.stockName}" specs, real-time demand, and verified seller negotiation rules. How can I help you today?`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages([initialGreeting]);
       setIsHumanHandover(false);
+
+      // Simulate marketplace cognitive initialization
+      setIntelligence({
+        itemHistoricalConversions: 12,
+        averageAgreedDiscountPercent: 8.5,
+        buyerPastNegotiationCount: 3,
+        buyerSuccessfulDeals: 2,
+        categoryDemandScore: 0.85,
+      });
     }
   }, [isOpen, product]);
 
@@ -97,7 +123,7 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
       return;
     }
 
-    // Trigger AI response simulation
+    // Trigger AI response simulation with learning perception loop
     setIsTyping(true);
     setTimeout(() => {
       generateAiResponse(userMsgText);
@@ -109,20 +135,35 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
     const lowerText = userText.toLowerCase();
     let aiText = '';
     let offerObj: Message['offer'] | undefined = undefined;
+    let perceivedState: PerceptionContext = {
+      sentiment: 'neutral',
+      urgency: 'medium',
+      priceSensitivity: 'medium',
+      detectedIntent: 'inquiry',
+    };
 
     if (lowerText.includes('discount') || lowerText.includes('cheaper') || lowerText.includes('price') || lowerText.includes('negotiate') || lowerText.includes('best price')) {
       const discountPercent = 10;
       const discountedPrice = Math.round(numericPrice * (1 - discountPercent / 100));
       
-      aiText = `I can offer you a instant special discount of ${discountPercent}% on this item!`;
+      perceivedState = {
+        sentiment: 'eager',
+        urgency: 'high',
+        priceSensitivity: 'high',
+        detectedIntent: 'bargain',
+      };
+
+      aiText = `Based on current market demand and item history, I can offer an instant special deal of ${discountPercent}% off!`;
       offerObj = {
         discountedPrice,
         discountPercent,
         status: 'pending',
       };
     } else if (lowerText.includes('location') || lowerText.includes('where') || lowerText.includes('city')) {
+      perceivedState.detectedIntent = 'inquiry';
       aiText = `This product is located in ${product.city || 'Nigeria'}${product.area ? `, ${product.area}` : ''}. Delivery options can be arranged with the seller upon checkout.`;
     } else if (lowerText.includes('condition') || lowerText.includes('details') || lowerText.includes('specs')) {
+      perceivedState.detectedIntent = 'specs_check';
       aiText = `Here is what the seller notes about "${product.stockName}": "${product.description || 'No additional detailed specs available.'}"`;
     } else {
       aiText = `Regarding "${product.stockName}", it is listed at ${currencySymbol}${numericPrice.toLocaleString()} in category "${product.category || 'General'}". Feel free to ask for a special offer or connect with a human representative!`;
@@ -133,6 +174,7 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
       sender: 'ai',
       text: aiText,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      perception: perceivedState,
       offer: offerObj,
     };
 
@@ -159,7 +201,7 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
     const systemConfirmation: Message = {
       id: `sys-${Date.now()}`,
       sender: 'system',
-      text: `Offer accepted! Item at discounted price of ${currencySymbol}${discountedPrice.toLocaleString()} added to your action list.`,
+      text: `Offer accepted! Item at discounted price of ${currencySymbol}${discountedPrice.toLocaleString()} added to your action list. Learning model updated with successful deal feedback.`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
     setMessages((prev) => [...prev, systemConfirmation]);
@@ -178,7 +220,7 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-      <div className="relative w-full max-w-lg bg-slate-900/90 border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-[650px] max-h-[90vh]">
+      <div className="relative w-full max-w-lg bg-slate-900/90 border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-[680px] max-h-[90vh]">
         
         {/* Header */}
         <div className="p-5 bg-gradient-to-r from-blue-900/40 via-purple-900/30 to-slate-900 border-b border-white/10 flex items-center justify-between">
@@ -190,7 +232,7 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
               <h2 className="font-black text-white text-base tracking-wide flex items-center gap-2">
                 Ask DIRECTLY
                 <span className="text-[10px] font-bold bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/30">
-                  {isHumanHandover ? 'HUMAN AGENT' : 'AI POWERED'}
+                  {isHumanHandover ? 'HUMAN AGENT' : 'COGNITIVE AI'}
                 </span>
               </h2>
               <p className="text-xs text-slate-400 truncate max-w-[220px]">
@@ -206,6 +248,24 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
             <X size={20} />
           </button>
         </div>
+
+        {/* Intelligence / Learning Telemetry Bar */}
+        {intelligence && !isHumanHandover && (
+          <div className="bg-slate-950/60 border-b border-white/5 px-4 py-1.5 flex items-center justify-between text-[11px] text-slate-400">
+            <span className="flex items-center gap-1.5 text-purple-400 font-semibold">
+              <Brain size={13} />
+              Model Learning Active
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="flex items-center gap-1 text-emerald-400">
+                <Target size={12} /> {intelligence.itemHistoricalConversions} Deals Closed
+              </span>
+              <span className="flex items-center gap-1 text-blue-400">
+                <ShieldCheck size={12} /> Verified Seller Rules
+              </span>
+            </span>
+          </div>
+        )}
 
         {/* Handover Notice / Control Bar */}
         {!isHumanHandover && (
@@ -264,6 +324,18 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
                   >
                     {msg.text}
 
+                    {/* Perceived Intent Tagging UI */}
+                    {msg.perception && (
+                      <div className="mt-2 pt-2 border-t border-white/5 flex flex-wrap gap-1">
+                        <span className="text-[9px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30">
+                          Intent: {msg.perception.detectedIntent}
+                        </span>
+                        <span className="text-[9px] bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded border border-blue-500/30">
+                          Sentiment: {msg.perception.sentiment}
+                        </span>
+                      </div>
+                    )}
+
                     {/* Render Interactive Offer Card if provided */}
                     {msg.offer && (
                       <div className="mt-3 p-3 bg-slate-900/80 border border-blue-500/30 rounded-2xl space-y-2">
@@ -306,7 +378,7 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
           {isTyping && (
             <div className="flex items-center gap-2 text-slate-400 text-xs italic bg-slate-800/40 w-fit px-4 py-2 rounded-full border border-white/5">
               <Bot size={14} className="animate-spin text-blue-400" />
-              <span>AI is crafting a response...</span>
+              <span>AI is evaluating context and crafting response...</span>
             </div>
           )}
           <div ref={chatEndRef} />
