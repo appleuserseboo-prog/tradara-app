@@ -1,23 +1,7 @@
 import React, { createContext, useContext, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { AIMessage, PendingToolApproval, ToolExecutionResult } from '../types/ai';
+import type { AIMessage, PendingToolApproval, ToolExecutionResult, BuyerPerception, MarketplaceIntelligence } from '../types/ai';
 import { aiApiService } from '../services/aiApi';
-
-export interface BuyerPerception {
-  sentiment: 'positive' | 'neutral' | 'negative' | 'frustrated' | 'eager';
-  urgency: 'low' | 'medium' | 'high';
-  priceSensitivity: 'low' | 'medium' | 'high';
-  detectedIntent: 'inquiry' | 'bargain' | 'specs_check' | 'human_request' | 'bulk_inquiry' | 'closing';
-  estimatedMaxBudget?: number;
-}
-
-export interface MarketplaceIntelligence {
-  itemHistoricalConversions: number;
-  averageAgreedDiscountPercent: number;
-  buyerPastNegotiationCount: number;
-  buyerSuccessfulDeals: number;
-  categoryDemandScore: number;
-}
 
 interface AIContextType {
   messages: AIMessage[];
@@ -54,7 +38,6 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     setIsProcessing(true);
 
     try {
-      // 1. Check if an item-specific AI sales session exists or option is provided
       if (options?.itemId && options?.buyerSession) {
         const response = await aiApiService.sendChatMessage({
           itemId: options.itemId,
@@ -81,9 +64,7 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
           };
           setMessages((prev) => [...prev, aiMsg]);
         }
-      } 
-      // 2. High-risk operational tool dispatch triggering approval interface
-      else if (content.toLowerCase().includes('update stock') || content.toLowerCase().includes('change price')) {
+      } else if (content.toLowerCase().includes('update stock') || content.toLowerCase().includes('change price')) {
         setPendingApproval({
           toolName: 'updateStock',
           parameters: { productId: 'prod_101', quantity: 50 },
@@ -97,9 +78,7 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
           timestamp: new Date().toISOString()
         };
         setMessages((prev) => [...prev, aiMsg]);
-      } 
-      // 3. Fallback to general AI Assistant tool integration / Store helper
-      else {
+      } else {
         const result = await aiApiService.executeTool({
           toolName: 'searchProducts',
           parameters: { query: content }

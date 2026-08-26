@@ -39,3 +39,19 @@ export interface AIMessage {
   status?: string;
   toolCalls?: ToolCallItem[];
 }
+
+export interface BuyerPerception {
+  sentiment: 'positive' | 'neutral' | 'negative' | 'frustrated' | 'eager';
+  urgency: 'low' | 'medium' | 'high';
+  priceSensitivity: 'low' | 'medium' | 'high';
+  detectedIntent: 'inquiry' | 'bargain' | 'specs_check' | 'human_request' | 'bulk_inquiry' | 'closing';
+  estimatedMaxBudget?: number;
+}
+
+export interface MarketplaceIntelligence {
+  itemHistoricalConversions: number;
+  averageAgreedDiscountPercent: number;
+  buyerPastNegotiationCount: number;
+  buyerSuccessfulDeals: number;
+  categoryDemandScore: number;
+}

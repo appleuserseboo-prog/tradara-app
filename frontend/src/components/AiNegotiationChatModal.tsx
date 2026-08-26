@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Sparkles, X, Send, Bot, User, Headphones, Tag, Check, AlertCircle, Brain, Target, ShieldCheck } from 'lucide-react';
+import { Sparkles, X, ArrowLeft, Send, Bot, User, Headphones, Tag, Check, AlertCircle, Brain, Target, ShieldCheck } from 'lucide-react';
 import { aiApiService } from '../services/aiApi';
+import type { BuyerPerception, MarketplaceIntelligence } from '../types/ai';
 
 export interface ProductContext {
   id: string;
@@ -14,27 +15,12 @@ export interface ProductContext {
   images?: string[];
 }
 
-interface IntelligenceContext {
-  itemHistoricalConversions?: number;
-  averageAgreedDiscountPercent?: number;
-  buyerPastNegotiationCount?: number;
-  buyerSuccessfulDeals?: number;
-  categoryDemandScore?: number;
-}
-
-interface PerceptionContext {
-  sentiment?: string;
-  urgency?: string;
-  priceSensitivity?: string;
-  detectedIntent?: string;
-}
-
 interface Message {
   id: string;
   sender: 'ai' | 'user' | 'system' | 'human';
   text: string;
   timestamp: string;
-  perception?: PerceptionContext;
+  perception?: BuyerPerception;
   offer?: {
     discountedPrice: number;
     discountPercent: number;
@@ -62,14 +48,13 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
   const [isHumanHandover, setIsHumanHandover] = useState(false);
   const [buyerSession, setBuyerSession] = useState('');
   const [activeAgreedPrice, setActiveAgreedPrice] = useState<number | null>(null);
-  const [intelligence, setIntelligence] = useState<IntelligenceContext | null>(null);
-  const [latestPerception, setLatestPerception] = useState<PerceptionContext | null>(null);
+  const [intelligence, setIntelligence] = useState<MarketplaceIntelligence | null>(null);
+  const [latestPerception, setLatestPerception] = useState<BuyerPerception | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const currencySymbol = product?.currency || '₦';
   const numericPrice = Number(product?.price || 0);
 
-  // Initialize unique buyer session & load history
   useEffect(() => {
     if (isOpen) {
       let existingSession = localStorage.getItem('tradara_buyer_session');
@@ -82,7 +67,7 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
       const initialGreeting: Message = {
         id: 'msg-1',
         sender: 'ai',
-        text: `Hello! I'm your TRADARA AI Assistant. I am trained on "${product.stockName}" specs, real-time demand, and verified seller negotiation rules. How can I help you today?`,
+        text: `Hello! I am TRADARA AI Assistant. I am trained on "${product.stockName}" specs, real-time demand, and verified seller negotiation rules. How can I help you today?`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
 
@@ -90,7 +75,6 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
       setIsHumanHandover(false);
       setActiveAgreedPrice(null);
 
-      // Initialize AI history from backend if present
       if (product.id && existingSession) {
         aiApiService.getNegotiationHistory(product.id, existingSession)
           .then((res) => {
@@ -120,7 +104,6 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
     }
   }, [isOpen, product, numericPrice]);
 
-  // Auto-scroll to bottom of chat
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
@@ -208,30 +191,37 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="flex flex-col w-full max-w-2xl h-[650px] bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+      <div className="flex flex-col w-full max-w-2xl h-[650px] bg-white rounded-2xl shadow-2xl overflow-hidden border border-blue-100">
         
-        {/* Header */}
-        <div className="bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-900 text-white p-4 flex items-center justify-between shadow-md">
+        {/* Header - TRADARA Blue Theme */}
+        <div className="bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-800 text-white p-4 flex items-center justify-between shadow-md">
           <div className="flex items-center space-x-3">
+            <button
+              onClick={onClose}
+              className="p-1.5 hover:bg-white/10 rounded-lg text-white/80 hover:text-white transition-colors"
+              title="Return to store"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
             <div className="relative">
               <div className="p-2 bg-white/10 rounded-xl backdrop-blur-md border border-white/20">
-                <Bot className="w-6 h-6 text-emerald-200" />
+                <Bot className="w-6 h-6 text-blue-100" />
               </div>
-              <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-emerald-900 rounded-full" />
+              <span className="absolute bottom-0 right-0 w-3 h-3 bg-blue-400 border-2 border-blue-900 rounded-full" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
                 <h3 className="font-bold text-lg leading-tight">{product.stockName}</h3>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/30 border border-emerald-300/30 text-emerald-100 flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-amber-300" /> AI Sales Assistant
+                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/30 border border-blue-300/30 text-blue-100 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-amber-300" /> TRADARA AI
                 </span>
               </div>
-              <p className="text-xs text-emerald-100/80 flex items-center gap-2 mt-0.5">
+              <p className="text-xs text-blue-100/80 flex items-center gap-2 mt-0.5">
                 <span>List Price: {currencySymbol}{numericPrice.toLocaleString()}</span>
                 {intelligence && intelligence.categoryDemandScore && (
-                  <span className="text-amber-200 font-medium">
-                    • High Demand Item
+                  <span className="text-red-200 font-medium bg-red-500/20 px-1.5 py-0.5 rounded border border-red-300/20">
+                    High Demand
                   </span>
                 )}
               </p>
@@ -252,29 +242,30 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
             <button
               onClick={onClose}
               className="p-1.5 hover:bg-white/10 rounded-lg text-white/80 hover:text-white transition-colors"
+              title="Close modal"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Cognitive Perception & Intelligence Bar */}
+        {/* Intelligence Bar - TRADARA Blue & Red Touch */}
         {(latestPerception || intelligence) && (
-          <div className="bg-emerald-50 border-b border-emerald-100 px-4 py-2 flex items-center justify-between text-xs text-emerald-900">
+          <div className="bg-blue-50 border-b border-blue-100 px-4 py-2 flex items-center justify-between text-xs text-blue-900">
             <div className="flex items-center space-x-3 overflow-x-auto py-0.5 scrollbar-none">
               {latestPerception?.detectedIntent && (
-                <span className="flex items-center gap-1 font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
-                  <Target className="w-3 h-3 text-emerald-600" /> Intent: {latestPerception.detectedIntent}
+                <span className="flex items-center gap-1 font-semibold text-blue-800 bg-blue-100 px-2 py-0.5 rounded-md">
+                  <Target className="w-3 h-3 text-blue-600" /> Intent: {latestPerception.detectedIntent}
                 </span>
               )}
               {latestPerception?.sentiment && (
-                <span className="flex items-center gap-1 text-gray-700 bg-white/80 px-2 py-0.5 rounded-md border border-emerald-200">
-                  <Brain className="w-3 h-3 text-emerald-600" /> Sentiment: {latestPerception.sentiment}
+                <span className="flex items-center gap-1 text-gray-700 bg-white px-2 py-0.5 rounded-md border border-blue-200">
+                  <Brain className="w-3 h-3 text-blue-600" /> Sentiment: {latestPerception.sentiment}
                 </span>
               )}
               {intelligence?.itemHistoricalConversions !== undefined && intelligence.itemHistoricalConversions > 0 && (
-                <span className="flex items-center gap-1 text-gray-700 bg-white/80 px-2 py-0.5 rounded-md border border-emerald-200">
-                  <ShieldCheck className="w-3 h-3 text-emerald-600" /> {intelligence.itemHistoricalConversions} Deals Closed
+                <span className="flex items-center gap-1 text-gray-700 bg-white px-2 py-0.5 rounded-md border border-blue-200">
+                  <ShieldCheck className="w-3 h-3 text-blue-600" /> {intelligence.itemHistoricalConversions} Deals Closed
                 </span>
               )}
             </div>
@@ -283,9 +274,9 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
 
         {/* Active Agreed Deal Banner */}
         {activeAgreedPrice && (
-          <div className="bg-emerald-600 text-white px-4 py-2.5 flex items-center justify-between shadow-inner">
+          <div className="bg-blue-600 text-white px-4 py-2.5 flex items-center justify-between shadow-inner">
             <div className="flex items-center space-x-2">
-              <Check className="w-5 h-5 text-emerald-200 bg-emerald-800/50 p-0.5 rounded-full" />
+              <Check className="w-5 h-5 text-blue-200 bg-blue-800/50 p-0.5 rounded-full" />
               <span className="text-xs font-semibold">
                 Deal Locked! Agreed Price: <span className="text-sm text-amber-200 font-bold">{currencySymbol}{activeAgreedPrice.toLocaleString()}</span>
               </span>
@@ -293,7 +284,7 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
             {onAddToCartWithDiscount && (
               <button
                 onClick={() => onAddToCartWithDiscount(activeAgreedPrice)}
-                className="bg-amber-400 hover:bg-amber-300 text-emerald-950 font-bold text-xs px-3 py-1.5 rounded-lg transition-colors flex items-center space-x-1 shadow-sm"
+                className="bg-red-500 hover:bg-red-600 text-white font-bold text-xs px-3 py-1.5 rounded-lg transition-colors flex items-center space-x-1 shadow-sm"
               >
                 <Tag className="w-3.5 h-3.5" />
                 <span>Claim Deal</span>
@@ -311,8 +302,8 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
             if (isSystem) {
               return (
                 <div key={msg.id} className="flex justify-center my-2">
-                  <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs px-3 py-1.5 rounded-lg flex items-center space-x-1.5 max-w-md text-center">
-                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <div className="bg-red-50 border border-red-200 text-red-800 text-xs px-3 py-1.5 rounded-lg flex items-center space-x-1.5 max-w-md text-center">
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
                     <span>{msg.text}</span>
                   </div>
                 </div>
@@ -327,8 +318,8 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
                 <div
                   className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
                     isUser
-                      ? 'bg-emerald-700 text-white'
-                      : 'bg-white text-emerald-700 border border-emerald-100'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white text-blue-600 border border-blue-100'
                   }`}
                 >
                   {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
@@ -338,25 +329,24 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
                   <div
                     className={`p-3.5 rounded-2xl text-sm leading-relaxed shadow-sm ${
                       isUser
-                        ? 'bg-emerald-700 text-white rounded-tr-none'
+                        ? 'bg-blue-600 text-white rounded-tr-none'
                         : 'bg-white text-gray-800 rounded-tl-none border border-gray-100'
                     }`}
                   >
                     <p>{msg.text}</p>
 
-                    {/* Numeric Offer Card embedded in message */}
                     {msg.offer && (
-                      <div className={`mt-2.5 pt-2 border-t ${isUser ? 'border-emerald-600' : 'border-gray-100'} flex items-center justify-between text-xs`}>
+                      <div className={`mt-2.5 pt-2 border-t ${isUser ? 'border-blue-500' : 'border-gray-100'} flex items-center justify-between text-xs`}>
                         <div className="flex items-center space-x-1.5">
-                          <Tag className={`w-3.5 h-3.5 ${isUser ? 'text-emerald-200' : 'text-emerald-600'}`} />
+                          <Tag className={`w-3.5 h-3.5 ${isUser ? 'text-blue-200' : 'text-blue-600'}`} />
                           <span className="font-medium">
                             Offer: {currencySymbol}{msg.offer.discountedPrice.toLocaleString()} ({msg.offer.discountPercent}% OFF)
                           </span>
                         </div>
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                           msg.offer.status === 'accepted'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-amber-100 text-amber-800'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-red-100 text-red-800'
                         }`}>
                           {msg.offer.status.toUpperCase()}
                         </span>
@@ -373,13 +363,13 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
 
           {isTyping && (
             <div className="flex items-start space-x-2.5">
-              <div className="w-8 h-8 rounded-xl bg-white text-emerald-700 border border-emerald-100 flex items-center justify-center shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-white text-blue-600 border border-blue-100 flex items-center justify-center shrink-0">
                 <Bot className="w-4 h-4" />
               </div>
               <div className="bg-white border border-gray-100 p-3.5 rounded-2xl rounded-tl-none shadow-sm flex items-center space-x-1.5">
-                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" />
-                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce [animation-delay:0.2s]" />
-                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce [animation-delay:0.4s]" />
+                <span className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" />
+                <span className="w-2 h-2 bg-blue-600 rounded-full animate-bounce [animation-delay:0.2s]" />
+                <span className="w-2 h-2 bg-blue-600 rounded-full animate-bounce [animation-delay:0.4s]" />
               </div>
             </div>
           )}
@@ -388,7 +378,6 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
 
         {/* Input Controls */}
         <div className="p-3.5 bg-white border-t border-gray-100 space-y-2">
-          {/* Quick Counter Offer Bar */}
           {!isHumanHandover && (
             <div className="flex items-center space-x-2 overflow-x-auto pb-1 text-xs">
               <span className="text-gray-400 font-medium shrink-0">Quick Offer:</span>
@@ -398,7 +387,7 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
                   <button
                     key={pct}
                     onClick={() => handleSendMessage(undefined, calculatedOffer)}
-                    className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg transition-colors font-medium shrink-0"
+                    className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg transition-colors font-medium shrink-0"
                   >
                     {pct}% Off ({currencySymbol}{calculatedOffer.toLocaleString()})
                   </button>
@@ -415,15 +404,15 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
               placeholder={
                 isHumanHandover
                   ? 'Message live representative...'
-                  : 'Ask about specs, ask for discount, or make an offer...'
+                  : 'Ask about specs, request discount, or make an offer...'
               }
-              className="flex-1 bg-slate-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/30 focus:border-emerald-600 transition-all placeholder:text-gray-400"
+              className="flex-1 bg-slate-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600 transition-all placeholder:text-gray-400"
             />
             
             <button
               type="submit"
               disabled={!inputValue.trim() && !offerInput}
-              className="bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 disabled:hover:bg-emerald-700 text-white p-2.5 rounded-xl transition-all shadow-md shrink-0"
+              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:hover:bg-blue-600 text-white p-2.5 rounded-xl transition-all shadow-md shrink-0"
             >
               <Send className="w-4 h-4" />
             </button>

@@ -1,4 +1,4 @@
-import type { ToolExecutionPayload, ToolExecutionResult, ToolDefinitionSchema } from '../types/ai';
+import type { ToolExecutionPayload, ToolExecutionResult, ToolDefinitionSchema, BuyerPerception, MarketplaceIntelligence } from '../types/ai';
 
 export interface SendChatMessagePayload {
   itemId: string;
@@ -15,8 +15,8 @@ export interface SendChatMessageResponse {
     reply: string;
     status?: string;
     agreedPrice?: number;
-    perception?: any;
-    intelligence?: any;
+    perception?: BuyerPerception;
+    intelligence?: MarketplaceIntelligence;
   };
   error?: string;
 }
