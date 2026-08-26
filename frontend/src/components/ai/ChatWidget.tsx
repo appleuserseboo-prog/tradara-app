@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAI } from '../../context/AIContext';
 import { ToolExecutionModal } from './ToolExecutionModal';
-import type { AIToolCall } from '../../types/ai';
+import type { ToolCallItem } from '../../types/ai';
 
 export const ChatWidget: React.FC = () => {
   const { messages, isProcessing, pendingApproval, sendMessage, executeToolWithApproval, cancelToolApproval } = useAI();
@@ -42,12 +42,12 @@ export const ChatWidget: React.FC = () => {
               {msg.content}
             </div>
 
-            {msg.toolCalls?.map((call: AIToolCall, idx: number) => (
+            {msg.toolCalls?.map((call: ToolCallItem, idx: number) => (
               <div key={idx} className="mt-1 p-2 rounded bg-gray-50 border border-gray-200 text-xs w-[80%]">
                 <span className="font-semibold text-gray-700">Tool Executed: {call.toolName}</span>
                 {call.result && (
                   <pre className="mt-1 overflow-x-auto text-[10px] text-gray-600">
-                    {JSON.stringify(call.result.data, null, 2)}
+                    {JSON.stringify(call.result.result || call.result, null, 2)}
                   </pre>
                 )}
               </div>

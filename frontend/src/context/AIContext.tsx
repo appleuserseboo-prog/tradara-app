@@ -3,13 +3,32 @@ import type { ReactNode } from 'react';
 import type { AIMessage, PendingToolApproval, ToolExecutionResult } from '../types/ai';
 import { aiApiService } from '../services/aiApi';
 
+export interface BuyerPerception {
+  sentiment: 'positive' | 'neutral' | 'negative' | 'frustrated' | 'eager';
+  urgency: 'low' | 'medium' | 'high';
+  priceSensitivity: 'low' | 'medium' | 'high';
+  detectedIntent: 'inquiry' | 'bargain' | 'specs_check' | 'human_request' | 'bulk_inquiry' | 'closing';
+  estimatedMaxBudget?: number;
+}
+
+export interface MarketplaceIntelligence {
+  itemHistoricalConversions: number;
+  averageAgreedDiscountPercent: number;
+  buyerPastNegotiationCount: number;
+  buyerSuccessfulDeals: number;
+  categoryDemandScore: number;
+}
+
 interface AIContextType {
   messages: AIMessage[];
   isProcessing: boolean;
   pendingApproval: PendingToolApproval | null;
-  sendMessage: (content: string) => Promise<void>;
+  lastPerception: BuyerPerception | null;
+  lastIntelligence: MarketplaceIntelligence | null;
+  sendMessage: (content: string, options?: { itemId?: string; buyerSession?: string; buyerId?: string; offeredPrice?: number; quantity?: number }) => Promise<void>;
   executeToolWithApproval: () => Promise<void>;
   cancelToolApproval: () => void;
+  clearMessages: () => void;
 }
 
 const AIContext = createContext<AIContextType | undefined>(undefined);
@@ -18,8 +37,13 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [messages, setMessages] = useState<AIMessage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [pendingApproval, setPendingApproval] = useState<PendingToolApproval | null>(null);
+  const [lastPerception, setLastPerception] = useState<BuyerPerception | null>(null);
+  const [lastIntelligence, setLastIntelligence] = useState<MarketplaceIntelligence | null>(null);
 
-  const sendMessage = async (content: string) => {
+  const sendMessage = async (
+    content: string,
+    options?: { itemId?: string; buyerSession?: string; buyerId?: string; offeredPrice?: number; quantity?: number }
+  ) => {
     const userMsg: AIMessage = {
       id: Date.now().toString(),
       sender: 'user',
@@ -30,8 +54,52 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     setIsProcessing(true);
 
     try {
-      // Mock AI intent parsing trigger to searchProducts for demonstration
-      if (content.toLowerCase().includes('search') || content.toLowerCase().includes('find')) {
+      // 1. Check if an item-specific AI sales session exists or option is provided
+      if (options?.itemId && options?.buyerSession) {
+        const response = await aiApiService.sendChatMessage({
+          itemId: options.itemId,
+          buyerSession: options.buyerSession,
+          buyerId: options.buyerId,
+          message: content,
+          offeredPrice: options.offeredPrice,
+          quantity: options.quantity
+        });
+
+        if (response.success && response.data) {
+          const { reply, perception, intelligence, agreedPrice, status } = response.data;
+
+          if (perception) setLastPerception(perception);
+          if (intelligence) setLastIntelligence(intelligence);
+
+          const aiMsg: AIMessage = {
+            id: (Date.now() + 1).toString(),
+            sender: 'assistant',
+            content: reply,
+            timestamp: new Date().toISOString(),
+            agreedPrice: agreedPrice || undefined,
+            status: status || undefined
+          };
+          setMessages((prev) => [...prev, aiMsg]);
+        }
+      } 
+      // 2. High-risk operational tool dispatch triggering approval interface
+      else if (content.toLowerCase().includes('update stock') || content.toLowerCase().includes('change price')) {
+        setPendingApproval({
+          toolName: 'updateStock',
+          parameters: { productId: 'prod_101', quantity: 50 },
+          riskLevel: 'EXECUTE'
+        });
+
+        const aiMsg: AIMessage = {
+          id: (Date.now() + 1).toString(),
+          sender: 'assistant',
+          content: 'This operation requires confirmation before changes are made to your store stock.',
+          timestamp: new Date().toISOString()
+        };
+        setMessages((prev) => [...prev, aiMsg]);
+      } 
+      // 3. Fallback to general AI Assistant tool integration / Store helper
+      else {
         const result = await aiApiService.executeTool({
           toolName: 'searchProducts',
           parameters: { query: content }
@@ -40,38 +108,25 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         const aiMsg: AIMessage = {
           id: (Date.now() + 1).toString(),
           sender: 'assistant',
-          content: `Here are the search results for "${content}":`,
+          content: result?.message || `TRADARA AI Assistant: "${content}". How can I help with your store operations or negotiations?`,
           timestamp: new Date().toISOString(),
-          toolCalls: [
+          toolCalls: result ? [
             {
               toolName: 'searchProducts',
               parameters: { query: content },
               result,
               status: 'completed'
             }
-          ]
-        };
-        setMessages((prev) => [...prev, aiMsg]);
-      } else if (content.toLowerCase().includes('update stock')) {
-        setPendingApproval({
-          toolName: 'updateStock',
-          parameters: { productId: 'prod_101', quantity: 50 },
-          riskLevel: 'EXECUTE'
-        });
-      } else {
-        const aiMsg: AIMessage = {
-          id: (Date.now() + 1).toString(),
-          sender: 'assistant',
-          content: `Tradara AI received: "${content}". How can I assist with your store operations?`,
-          timestamp: new Date().toISOString()
+          ] : undefined
         };
         setMessages((prev) => [...prev, aiMsg]);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred.';
       const errorMsg: AIMessage = {
         id: (Date.now() + 1).toString(),
         sender: 'assistant',
-        content: `Error processing request: ${err.message}`,
+        content: `Error processing request: ${errorMessage}`,
         timestamp: new Date().toISOString()
       };
       setMessages((prev) => [...prev, errorMsg]);
@@ -94,7 +149,7 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       const aiMsg: AIMessage = {
         id: Date.now().toString(),
         sender: 'assistant',
-        content: `Executed operation ${pendingApproval.toolName} successfully.`,
+        content: `Executed operation "${pendingApproval.toolName}" successfully.`,
         timestamp: new Date().toISOString(),
         toolCalls: [
           {
@@ -108,11 +163,12 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
       setMessages((prev) => [...prev, aiMsg]);
       setPendingApproval(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Error executing action.';
       const errorMsg: AIMessage = {
         id: Date.now().toString(),
         sender: 'assistant',
-        content: `Tool approval execution failed: ${err.message}`,
+        content: `Tool approval execution failed: ${errorMessage}`,
         timestamp: new Date().toISOString()
       };
       setMessages((prev) => [...prev, errorMsg]);
@@ -125,15 +181,24 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     setPendingApproval(null);
   };
 
+  const clearMessages = () => {
+    setMessages([]);
+    setLastPerception(null);
+    setLastIntelligence(null);
+  };
+
   return (
     <AIContext.Provider
       value={{
         messages,
         isProcessing,
         pendingApproval,
+        lastPerception,
+        lastIntelligence,
         sendMessage,
         executeToolWithApproval,
-        cancelToolApproval
+        cancelToolApproval,
+        clearMessages
       }}
     >
       {children}

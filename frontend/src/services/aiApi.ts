@@ -1,49 +1,148 @@
 import type { ToolExecutionPayload, ToolExecutionResult, ToolDefinitionSchema } from '../types/ai';
 
-const getApiBaseUrl = (): string => {
-  const globalObj = typeof globalThis !== 'undefined' ? (globalThis as any) : {};
-  if (globalObj.process?.env?.REACT_APP_API_URL) {
-    return globalObj.process.env.REACT_APP_API_URL;
-  }
-  if (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.VITE_API_URL) {
-    return (import.meta as any).env.VITE_API_URL;
-  }
-  return '/api';
-};
+export interface SendChatMessagePayload {
+  itemId: string;
+  buyerSession: string;
+  buyerId?: string;
+  message: string;
+  offeredPrice?: number;
+  quantity?: number;
+}
 
-const API_BASE_URL = getApiBaseUrl();
+export interface SendChatMessageResponse {
+  success: boolean;
+  data?: {
+    reply: string;
+    status?: string;
+    agreedPrice?: number;
+    perception?: any;
+    intelligence?: any;
+  };
+  error?: string;
+}
 
-export const aiApiService = {
-  async executeTool(payload: ToolExecutionPayload): Promise<ToolExecutionResult> {
-    const response = await fetch(`${API_BASE_URL}/ai/execute-tool`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token') || ''}`
-      },
-      body: JSON.stringify(payload)
-    });
+export interface GetNegotiationHistoryResponse {
+  success: boolean;
+  session?: {
+    status?: string;
+    agreedPrice?: number;
+    messages: Array<{
+      id?: string;
+      sender: string;
+      message: string;
+      createdAt?: string;
+      offerMade?: number;
+    }>;
+  };
+  error?: string;
+}
 
-    const data = await response.json();
-    if (!response.ok && !data.requiresApproval) {
-      throw new Error(data.error || 'Failed to execute AI tool');
-    }
-    return data.result || data;
-  },
+class AiApiService {
+  private baseUrl = '/api/ai';
 
-  async getAvailableTools(): Promise<ToolDefinitionSchema[]> {
-    const response = await fetch(`${API_BASE_URL}/ai/tools`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token') || ''}`
+  /**
+   * Execute an automated tool payload
+   */
+  async executeTool(payload: ToolExecutionPayload): Promise<ToolExecutionResult<any>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/execute-tool`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    });
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch available AI tools');
+      return await response.json();
+    } catch (error: any) {
+      console.error('Error executing tool via AI Service:', error);
+      return {
+        success: false,
+        message: error.message || 'Failed to execute tool',
+        result: null,
+      };
     }
-    const data = await response.json();
-    return data.tools || [];
   }
-};
+
+  /**
+   * Retrieve list of available AI schema tools
+   */
+  async getAvailableTools(): Promise<ToolDefinitionSchema[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/tools`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error: any) {
+      console.error('Error fetching available tools:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Send chat message during live negotiation session
+   */
+  async sendChatMessage(payload: SendChatMessagePayload): Promise<SendChatMessageResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/negotiation/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error: any) {
+      console.error('Error sending chat message:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to send chat message',
+      };
+    }
+  }
+
+  /**
+   * Fetch previous negotiation chat history for a session
+   */
+  async getNegotiationHistory(itemId: string, buyerSession: string): Promise<GetNegotiationHistoryResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/negotiation/history?itemId=${encodeURIComponent(itemId)}&buyerSession=${encodeURIComponent(buyerSession)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error: any) {
+      console.error('Error retrieving negotiation history:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch history',
+      };
+    }
+  }
+}
+
+export const aiApiService = new AiApiService();

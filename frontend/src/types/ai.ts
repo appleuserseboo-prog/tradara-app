@@ -1,51 +1,29 @@
-export type RiskLevel = 'READ' | 'RECOMMEND' | 'PREPARE' | 'EXECUTE';
-
-export interface PendingToolApproval {
-  toolName: string;
-  riskLevel: RiskLevel;
-  parameters: Record<string, any>;
-  approvalToken?: string;
-}
-
 export interface ToolExecutionPayload {
   toolName: string;
-  parameters?: Record<string, any>;
+  parameters: Record<string, any>;
   confirmed?: boolean;
 }
 
 export interface ToolExecutionResult<T = any> {
   success: boolean;
-  data?: T;
+  message?: string;
+  result?: T;
   error?: string;
-  riskLevel?: RiskLevel;
-  requiresApproval?: boolean;
-  approvalToken?: string;
-  metadata?: Record<string, any>;
-}
-
-export interface ToolParameterSchema {
-  type: 'string' | 'number' | 'boolean' | 'object' | 'array';
-  description: string;
-  required?: boolean;
-  enum?: string[];
-  properties?: Record<string, ToolParameterSchema>;
-  items?: ToolParameterSchema;
-}
-
-export interface ToolParameters {
-  type: 'object';
-  properties: Record<string, ToolParameterSchema>;
-  required?: string[];
 }
 
 export interface ToolDefinitionSchema {
   name: string;
   description: string;
-  riskLevel: RiskLevel;
-  parameters: ToolParameters;
+  parameters: Record<string, any>;
 }
 
-export interface AIToolCall {
+export interface PendingToolApproval {
+  toolName: string;
+  parameters: Record<string, any>;
+  riskLevel: 'READ_ONLY' | 'LOW' | 'MEDIUM' | 'HIGH' | 'EXECUTE';
+}
+
+export interface ToolCallItem {
   toolName: string;
   parameters: Record<string, any>;
   result?: ToolExecutionResult;
@@ -54,8 +32,10 @@ export interface AIToolCall {
 
 export interface AIMessage {
   id: string;
-  sender: 'user' | 'assistant';
+  sender: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: string;
-  toolCalls?: AIToolCall[];
+  agreedPrice?: number;
+  status?: string;
+  toolCalls?: ToolCallItem[];
 }
