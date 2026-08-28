@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { aiApiService } from '../../services/aiApi';
 import type { SendChatMessagePayload } from '../../services/aiApi';
-import { Sparkles, Send, Bot, RefreshCw, X, ShoppingBag, UserCheck, ShieldAlert } from 'lucide-react';
+import { Sparkles, Send, Bot, RefreshCw, X, ShoppingBag, UserCheck } from 'lucide-react';
 
 export interface ItemContext {
   id: string;
@@ -9,6 +9,7 @@ export interface ItemContext {
   price: number;
   currency?: string;
   imageUrl?: string;
+  description?: string;
 }
 
 export interface Message {
@@ -49,7 +50,7 @@ export const TradaraAiDrawer: React.FC<TradaraAiDrawerProps> = ({
       setMessages([
         {
           sender: 'ai',
-          message: 'Hello! I am TRADARA AI. Select any item in the marketplace to start smart dynamic negotiation or ask about product details!',
+          message: 'Hello! I am TRADARA AI, your advanced assistant. Ask me any question, explore product details, or select an item from the marketplace to start dynamic negotiations!',
         },
       ]);
     }
@@ -109,22 +110,6 @@ export const TradaraAiDrawer: React.FC<TradaraAiDrawerProps> = ({
     const text = textToSend || inputMessage;
     if ((!text.trim() && !numericOffer) || isLoading) return;
 
-    if (!activeItem) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: 'buyer',
-          message: text,
-        },
-        {
-          sender: 'ai',
-          message: 'Please navigate to a specific item page or click on a product card so I can assist you with live negotiations and item specifications.',
-        },
-      ]);
-      setInputMessage('');
-      return;
-    }
-
     const userMsgText = numericOffer 
       ? `Offered: ${currencySymbol}${numericOffer.toLocaleString()}` 
       : text;
@@ -140,7 +125,7 @@ export const TradaraAiDrawer: React.FC<TradaraAiDrawerProps> = ({
     setIsLoading(true);
 
     const payload: SendChatMessagePayload = {
-      itemId: activeItem.id,
+      itemId: activeItem ? activeItem.id : 'general-ai-session',
       buyerSession,
       buyerId,
       message: userMsgText,
@@ -244,9 +229,9 @@ export const TradaraAiDrawer: React.FC<TradaraAiDrawerProps> = ({
           )}
         </div>
       ) : (
-        <div className="px-4 py-2.5 bg-amber-500/10 border-b border-amber-500/20 flex items-center gap-2 text-amber-300 text-xs font-medium">
-          <ShieldAlert className="w-4 h-4 shrink-0" />
-          <span>Browse any product to trigger live AI negotiations.</span>
+        <div className="px-4 py-2.5 bg-purple-500/10 border-b border-purple-500/20 flex items-center gap-2 text-purple-300 text-xs font-medium">
+          <Sparkles className="w-4 h-4 shrink-0 text-purple-400" />
+          <span>Ask any question or pick an item to start live negotiation.</span>
         </div>
       )}
 
@@ -329,7 +314,7 @@ export const TradaraAiDrawer: React.FC<TradaraAiDrawerProps> = ({
             type="text"
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
-            placeholder={activeItem ? "Ask specs or offer price..." : "Type message..."}
+            placeholder={activeItem ? "Ask specs or offer price..." : "Ask any question or talk to AI..."}
             disabled={isLoading}
             className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500/50 transition-colors"
           />
