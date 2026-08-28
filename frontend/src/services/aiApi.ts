@@ -1,5 +1,8 @@
 import type { ToolExecutionPayload, ToolExecutionResult, ToolDefinitionSchema, BuyerPerception, MarketplaceIntelligence } from '../types/ai';
 
+// Safely declare process for TypeScript static checking in browser/Vite environments
+declare const process: { env: Record<string, string | undefined> } | undefined;
+
 export interface SendChatMessagePayload {
   itemId: string;
   buyerSession: string;
@@ -38,7 +41,14 @@ export interface GetNegotiationHistoryResponse {
 }
 
 class AiApiService {
-  private baseUrl = '/api/ai';
+  private baseUrl = (() => {
+    const envApiUrl =
+      (typeof process !== 'undefined' && process?.env?.REACT_APP_API_URL) ||
+      (import.meta as any).env?.VITE_API_URL ||
+      (import.meta as any).env?.REACT_APP_API_URL;
+
+    return envApiUrl ? `${envApiUrl}/api/ai` : '/api/ai';
+  })();
 
   /**
    * Execute an automated tool payload

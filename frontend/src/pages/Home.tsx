@@ -125,7 +125,7 @@ export const Home = () => {
           </div>
         </div>
       </div>
-
+      
       {/* 4-COLUMN GRID */}
       <div className="max-w-7xl mx-auto px-2 pb-32">
         <Suspense fallback={<div className="flex justify-center py-20"><Loader2 className="animate-spin text-blue-600" size={48} /></div>}>

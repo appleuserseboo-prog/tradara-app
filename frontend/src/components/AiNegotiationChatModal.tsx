@@ -67,7 +67,7 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
       const initialGreeting: Message = {
         id: 'msg-1',
         sender: 'ai',
-        text: `Hello! I am TRADARA AI Assistant. I am trained on "${product.stockName}" specs, real-time demand, and verified seller negotiation rules. How can I help you today?`,
+        text: `Hello! I am TRADARA AI Assistant. I am trained on "${product?.stockName || 'this item'}" specs, real-time demand, and verified seller negotiation rules. How can I help you today?`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
 
@@ -75,7 +75,7 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
       setIsHumanHandover(false);
       setActiveAgreedPrice(null);
 
-      if (product.id && existingSession) {
+      if (product?.id && existingSession) {
         aiApiService.getNegotiationHistory(product.id, existingSession)
           .then((res) => {
             if (res.success && res.session && res.session.messages.length > 0) {
@@ -169,6 +169,14 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
         };
 
         setMessages((prev) => [...prev, aiResponseMsg]);
+      } else {
+        const errorMsg: Message = {
+          id: `err-${Date.now()}`,
+          sender: 'system',
+          text: response.error || 'Network issue connecting to TRADARA AI Sales Engine. Please try again.',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        };
+        setMessages((prev) => [...prev, errorMsg]);
       }
     } catch (error: unknown) {
       console.error('Error in sales negotiation:', error);
@@ -192,7 +200,7 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-      <div className="flex flex-col w-full max-w-2xl h-[650px] bg-white rounded-2xl shadow-2xl overflow-hidden border border-blue-100">
+      <div className="flex flex-col w-full max-w-2xl max-h-[85vh] h-[650px] bg-white rounded-2xl shadow-2xl overflow-hidden border border-blue-100">
         
         {/* Header - TRADARA Blue Theme */}
         <div className="bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-800 text-white p-4 flex items-center justify-between shadow-md">
@@ -212,7 +220,7 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h3 className="font-bold text-lg leading-tight">{product.stockName}</h3>
+                <h3 className="font-bold text-lg leading-tight">{product?.stockName || 'Item'}</h3>
                 <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/30 border border-blue-300/30 text-blue-100 flex items-center gap-1">
                   <Sparkles className="w-3 h-3 text-amber-300" /> TRADARA AI
                 </span>
