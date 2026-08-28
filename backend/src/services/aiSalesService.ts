@@ -11,6 +11,7 @@ export interface ProcessChatMessageInput {
   message: string;
   offeredPrice?: number;
   quantity?: number;
+  systemPrompt?: string;
 }
 
 export interface BuyerPerception {
@@ -171,16 +172,17 @@ export class AiSalesService {
   }
 
   public static async processMessage(input: ProcessChatMessageInput) {
-    const { itemId, buyerSession, buyerId, message, offeredPrice, quantity = 1 } = input;
+    const { itemId, buyerSession, buyerId, message, offeredPrice, quantity = 1, systemPrompt: customSystemPrompt } = input;
 
-    // 1. Fetch Item & AI Configuration
-    const item = await (prisma as any).item.findUnique({
-      where: { id: itemId },
-      include: { aiConfig: true, seller: true },
-    });
+    // 1. Fetch Item & AI Configuration (Optional for general AI chat sessions)
+    const isGeneralSession = itemId === 'general-ai-session';
+    let item: any = null;
 
-    if (!item) {
-      throw new Error('Item not found.');
+    if (!isGeneralSession) {
+      item = await (prisma as any).item.findUnique({
+        where: { id: itemId },
+        include: { aiConfig: true, seller: true },
+      });
     }
 
     // 2. Find or Create Negotiation Session
@@ -208,7 +210,7 @@ export class AiSalesService {
     }
 
     // 3. Cognitive Perception Layer: Run intent classification and gather historic cross-session data
-    const perception = this.perceiveBuyerIntent(message, offeredPrice, item.price);
+    const perception = this.perceiveBuyerIntent(message, offeredPrice, item?.price || 0);
     const intelligence = await this.gatherMarketplaceIntelligence(itemId, buyerId);
 
     // 4. Store Buyer's incoming message
@@ -250,10 +252,10 @@ export class AiSalesService {
     let agreedPrice = session.agreedPrice;
 
     // Check if AI negotiation is configured and enabled for this item
-    const isAutoNegotiateActive = Boolean(item.aiConfig && item.aiConfig.autoNegotiateEnabled);
+    const isAutoNegotiateActive = Boolean(item && item.aiConfig && item.aiConfig.autoNegotiateEnabled);
 
-    // SCENARIO 1: Buyer submitted a structured numeric offer
-    if (offeredPrice) {
+    // SCENARIO 1: Buyer submitted a structured numeric offer on an active item
+    if (offeredPrice && item) {
       if (!isAutoNegotiateActive) {
         // No AI config or auto-negotiate disabled -> Cannot auto-accept discounts
         aiReply = `Thank you for your offer of ${item.currency || '₦'}${offeredPrice.toLocaleString()}. This item has a fixed price of ${item.currency || '₦'}${item.price.toLocaleString()}. If you would like to negotiate further, please request to connect with a human agent.`;
@@ -282,13 +284,13 @@ export class AiSalesService {
         }
       }
     } 
-    // SCENARIO 2: Text question / natural language negotiation
+    // SCENARIO 2: Text question / natural language negotiation / general AI session
     else {
-      if (!isAutoNegotiateActive) {
-        // If no AI config exists or auto-negotiation is disabled, explicitly state the list price is firm
+      if (item && !isAutoNegotiateActive && !customSystemPrompt) {
+        // If no AI config exists or auto-negotiation is disabled and no override system prompt, state price is firm
         aiReply = `The price for ${item.stockName || item.title || 'this item'} is fixed at ${item.currency || '₦'}${item.price.toLocaleString()}. Feel free to ask if you have any questions about its specifications!`;
       } else {
-        // AI Config IS enabled -> Use Gemini with strict seller parameters
+        // Use Gemini with passed or dynamic prompt
         try {
           if (!process.env.GEMINI_API_KEY) {
             throw new Error('GEMINI_API_KEY environment variable is not defined.');
@@ -302,7 +304,11 @@ export class AiSalesService {
             .map((m: any) => `${m.sender.toUpperCase()}: ${m.message}`)
             .join('\n');
 
-          const systemPrompt = `
+          let systemPrompt = customSystemPrompt;
+
+          if (!systemPrompt) {
+            if (item) {
+              systemPrompt = `
 You are TRADARA's AI Sales Assistant representing the seller for "${item.stockName || item.title || 'this item'}".
 Your tone: ${item.aiConfig?.aiTone || 'Friendly, professional, and persuasive'}.
 
@@ -341,6 +347,10 @@ ${recentHistoryText || 'No prior conversation.'}
 6. Adapt your response style based on buyer sentiment: If sentiment is frustrated or urgency is high, keep it ultra-direct.
 7. Keep responses concise (2-4 sentences max) suitable for live chat.
 `;
+            } else {
+              systemPrompt = `You are TRADARA AI, an advanced AI assistant built for TRADARA. Answer general queries, product questions, and provide assistance concisely.`;
+            }
+          }
 
           const response = await model.generateContent([
             systemPrompt,
@@ -352,24 +362,28 @@ ${recentHistoryText || 'No prior conversation.'}
           console.error("Gemini AI Processing Error:", error);
           
           // Rule-based deterministic fallback when API key is missing or model fails
-          const minP = item.aiConfig?.minimumPrice || item.price;
-          const targetP = item.aiConfig?.targetPrice || item.price;
-          const msgLower = message.toLowerCase();
+          if (item) {
+            const minP = item.aiConfig?.minimumPrice || item.price;
+            const targetP = item.aiConfig?.targetPrice || item.price;
+            const msgLower = message.toLowerCase();
 
-          if (msgLower.includes('how much') || msgLower.includes('price')) {
-            aiReply = `The listed price for ${item.stockName || item.title || 'this item'} is ${item.currency || '₦'}${item.price.toLocaleString()}.`;
-          } else if (msgLower.includes('bottom') || msgLower.includes('negotiable') || msgLower.includes('less') || msgLower.includes('last price') || msgLower.includes('discount')) {
-            if (targetP < item.price) {
-              aiReply = `The listed price is ${item.currency || '₦'}${item.price.toLocaleString()}, but I can offer it to you for ${item.currency || '₦'}${targetP.toLocaleString()} for a quick deal!`;
-            } else if (minP < item.price) {
-              aiReply = `The listed price is ${item.currency || '₦'}${item.price.toLocaleString()}, but we can consider offers down to ${item.currency || '₦'}${minP.toLocaleString()}.`;
+            if (msgLower.includes('how much') || msgLower.includes('price')) {
+              aiReply = `The listed price for ${item.stockName || item.title || 'this item'} is ${item.currency || '₦'}${item.price.toLocaleString()}.`;
+            } else if (msgLower.includes('bottom') || msgLower.includes('negotiable') || msgLower.includes('less') || msgLower.includes('last price') || msgLower.includes('discount')) {
+              if (targetP < item.price) {
+                aiReply = `The listed price is ${item.currency || '₦'}${item.price.toLocaleString()}, but I can offer it to you for ${item.currency || '₦'}${targetP.toLocaleString()} for a quick deal!`;
+              } else if (minP < item.price) {
+                aiReply = `The listed price is ${item.currency || '₦'}${item.price.toLocaleString()}, but we can consider offers down to ${item.currency || '₦'}${minP.toLocaleString()}.`;
+              } else {
+                aiReply = `The price for ${item.stockName || item.title || 'this item'} is firm at ${item.currency || '₦'}${item.price.toLocaleString()}.`;
+              }
+            } else if (msgLower.includes('hi') || msgLower.includes('hello') || msgLower.includes('hey')) {
+              aiReply = `Hello! How can I help you today regarding ${item.stockName || item.title || 'this product'}?`;
             } else {
-              aiReply = `The price for ${item.stockName || item.title || 'this item'} is firm at ${item.currency || '₦'}${item.price.toLocaleString()}.`;
+              aiReply = `I am TRADARA's sales assistant for ${item.stockName || item.title || 'this item'} (Listed: ${item.currency || '₦'}${item.price.toLocaleString()}). How can I assist you with its details or pricing?`;
             }
-          } else if (msgLower.includes('hi') || msgLower.includes('hello') || msgLower.includes('hey')) {
-            aiReply = `Hello! How can I help you today regarding ${item.stockName || item.title || 'this product'}?`;
           } else {
-            aiReply = `I am TRADARA's sales assistant for ${item.stockName || item.title || 'this item'} (Listed: ${item.currency || '₦'}${item.price.toLocaleString()}). How can I assist you with its details or pricing?`;
+            aiReply = `Hello! I am TRADARA AI. How can I help you explore marketplace products or answer your questions today?`;
           }
         }
       }

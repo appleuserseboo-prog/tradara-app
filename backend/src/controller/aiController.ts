@@ -60,6 +60,28 @@ export const handleChatMessage = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'itemId, buyerSession, and message are required fields.' });
     }
 
+    let systemPrompt = '';
+
+    // Check if message is bound to a specific item or general assistant mode
+    if (itemId && itemId !== 'general-ai-session') {
+      const activeItem = await (prisma as any).item.findUnique({
+        where: { id: itemId },
+      });
+
+      if (activeItem) {
+        systemPrompt = `You are TRADARA AI, an expert e-commerce negotiator representing the seller for "${activeItem.title}".
+Price: ₦${activeItem.price}
+${activeItem.description ? `Description: ${activeItem.description}` : ''}
+Goal: Help the user negotiate prices, answer item specs, and facilitate checkout.`;
+      } else {
+        systemPrompt = `You are TRADARA AI, an advanced AI assistant built for TRADARA. Answer questions directly and guide the user to valid products if needed.`;
+      }
+    } else {
+      systemPrompt = `You are TRADARA AI, an advanced, highly intelligent AI assistant built for TRADARA.
+Capabilities: Answer general knowledge, tech, business, complex inquiries, math, coding, and provide shopping assistance.
+Goal: Provide precise, direct, and insightful answers. If the user expresses intent to buy a specific product without an active item selected, kindly answer their question or describe the item while guiding them to select a product card on TRADARA for live bargaining.`;
+    }
+
     const result = await AiSalesService.processMessage({
       itemId,
       buyerSession,
@@ -67,6 +89,7 @@ export const handleChatMessage = async (req: Request, res: Response) => {
       message,
       offeredPrice: offeredPrice ? Number(offeredPrice) : undefined,
       quantity: quantity ? Number(quantity) : 1,
+      systemPrompt,
     });
 
     return res.status(200).json({ success: true, data: result });
