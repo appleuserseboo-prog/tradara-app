@@ -55,7 +55,7 @@ export class AiSalesService {
     }
 
     // Intent Perception
-    if (offeredPrice || msgLower.includes('bottom') || msgLower.includes('negotiable') || msgLower.includes('last price') || msgLower.includes('discount') || msgLower.includes('cheaper')) {
+    if (offeredPrice || msgLower.includes('bottom') || msgLower.includes('negotiable') || msgLower.includes('last price') || msgLower.includes('discount') || msgLower.includes('cheaper') || msgLower.includes('how much')) {
       detectedIntent = 'bargain';
       priceSensitivity = 'high';
     } else if (msgLower.includes('spec') || msgLower.includes('condition') || msgLower.includes('warranty') || msgLower.includes('authentic') || msgLower.includes('original')) {
@@ -199,6 +199,12 @@ export class AiSalesService {
         },
         include: { messages: true },
       });
+    } else if (buyerId && !session.buyerId) {
+      // Backfill buyerId if user was guest and later authenticated
+      await (prisma as any).aiNegotiationSession.update({
+        where: { id: session.id },
+        data: { buyerId },
+      });
     }
 
     // 3. Cognitive Perception Layer: Run intent classification and gather historic cross-session data
@@ -284,6 +290,10 @@ export class AiSalesService {
       } else {
         // AI Config IS enabled -> Use Gemini with strict seller parameters
         try {
+          if (!process.env.GEMINI_API_KEY) {
+            throw new Error('GEMINI_API_KEY environment variable is not defined.');
+          }
+
           const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
           // Assemble Short-Term Memory Context from historic message chain
@@ -327,8 +337,9 @@ ${recentHistoryText || 'No prior conversation.'}
    - Acknowledge that discounts are possible.
    - Do NOT give away the absolute floor (${item.currency || '₦'}${item.aiConfig?.walkawayPrice || item.aiConfig?.minimumPrice || item.price}) immediately.
    - Proactively suggest a reasonable initial price near ${item.currency || '₦'}${item.aiConfig?.targetPrice || item.price}.
-5. Adapt your response style based on buyer sentiment: If sentiment is frustrated or urgency is high, keep it ultra-direct.
-6. Keep responses concise (2-4 sentences max) suitable for live chat.
+5. OFF-TOPIC RULE: If the buyer asks questions unrelated to the item or trading on TRADARA (e.g., "what is machine learning"), politely state that you are the product sales assistant for this item, and redirect them back to discuss the item's features or price.
+6. Adapt your response style based on buyer sentiment: If sentiment is frustrated or urgency is high, keep it ultra-direct.
+7. Keep responses concise (2-4 sentences max) suitable for live chat.
 `;
 
           const response = await model.generateContent([
@@ -340,18 +351,25 @@ ${recentHistoryText || 'No prior conversation.'}
         } catch (error) {
           console.error("Gemini AI Processing Error:", error);
           
-          // Fallback using exact seller target price instead of hardcoded percentage
+          // Rule-based deterministic fallback when API key is missing or model fails
+          const minP = item.aiConfig?.minimumPrice || item.price;
           const targetP = item.aiConfig?.targetPrice || item.price;
           const msgLower = message.toLowerCase();
 
-          if (msgLower.includes('bottom') || msgLower.includes('negotiable') || msgLower.includes('less') || msgLower.includes('last price')) {
+          if (msgLower.includes('how much') || msgLower.includes('price')) {
+            aiReply = `The listed price for ${item.stockName || item.title || 'this item'} is ${item.currency || '₦'}${item.price.toLocaleString()}.`;
+          } else if (msgLower.includes('bottom') || msgLower.includes('negotiable') || msgLower.includes('less') || msgLower.includes('last price') || msgLower.includes('discount')) {
             if (targetP < item.price) {
-              aiReply = `The listed price is ${item.currency || '₦'}${item.price.toLocaleString()}, but we can offer it for ${item.currency || '₦'}${targetP.toLocaleString()} for a quick purchase!`;
+              aiReply = `The listed price is ${item.currency || '₦'}${item.price.toLocaleString()}, but I can offer it to you for ${item.currency || '₦'}${targetP.toLocaleString()} for a quick deal!`;
+            } else if (minP < item.price) {
+              aiReply = `The listed price is ${item.currency || '₦'}${item.price.toLocaleString()}, but we can consider offers down to ${item.currency || '₦'}${minP.toLocaleString()}.`;
             } else {
-              aiReply = `The price for ${item.stockName || 'this item'} is firm at ${item.currency || '₦'}${item.price.toLocaleString()}.`;
+              aiReply = `The price for ${item.stockName || item.title || 'this item'} is firm at ${item.currency || '₦'}${item.price.toLocaleString()}.`;
             }
+          } else if (msgLower.includes('hi') || msgLower.includes('hello') || msgLower.includes('hey')) {
+            aiReply = `Hello! How can I help you today regarding ${item.stockName || item.title || 'this product'}?`;
           } else {
-            aiReply = `Thank you for asking about ${item.stockName || 'this item'}. ${item.description || 'How can I assist you with this product?'}`;
+            aiReply = `I am TRADARA's sales assistant for ${item.stockName || item.title || 'this item'} (Listed: ${item.currency || '₦'}${item.price.toLocaleString()}). How can I assist you with its details or pricing?`;
           }
         }
       }
