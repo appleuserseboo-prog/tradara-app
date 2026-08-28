@@ -91,6 +91,17 @@ export class AiSalesService {
    */
   private static async gatherMarketplaceIntelligence(itemId: string, buyerId?: string): Promise<MarketplaceIntelligence> {
     try {
+      // Return default intelligence baseline for non-item general sessions to prevent database lookup failures
+      if (itemId === 'general-ai-session') {
+        return {
+          itemHistoricalConversions: 0,
+          averageAgreedDiscountPercent: 0,
+          buyerPastNegotiationCount: 0,
+          buyerSuccessfulDeals: 0,
+          categoryDemandScore: 0.5,
+        };
+      }
+
       // 1. Fetch historical conversion statistics for this item
       const itemPastSessions = await (prisma as any).aiNegotiationSession.findMany({
         where: { itemId, status: 'agreed' },
