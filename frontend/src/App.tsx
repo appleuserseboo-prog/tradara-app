@@ -72,7 +72,7 @@ const AppContent: React.FC = () => {
               <span className="text-[10px] font-medium mt-0.5">{isDarkMode ? 'Day' : 'Night'}</span>
             </button>
 
-            {/* Meta AI WhatsApp Style Direct Button in Top Navigation */}
+            {/* Tradara AI WhatsApp Style Direct Button in Top Navigation */}
             <button
               onClick={() => setIsAiOpen(!isAiOpen)}
               className="flex flex-col items-center justify-center min-w-[50px] text-purple-500 hover:text-purple-400 transition-all relative"
@@ -80,7 +80,7 @@ const AppContent: React.FC = () => {
               <div className="p-1 rounded-full bg-gradient-to-tr from-purple-600 via-indigo-600 to-amber-400 text-white shadow-md shadow-purple-500/30">
                 <Sparkles className="w-4 h-4 animate-pulse" />
               </div>
-              <span className="text-[10px] uppercase mt-0.5 font-bold text-purple-400">Meta AI</span>
+              <span className="text-[10px] uppercase mt-0.5 font-bold text-purple-400">Tradara AI</span>
             </button>
 
             {token ? (
@@ -144,7 +144,7 @@ const AppContent: React.FC = () => {
             <div className="text-left hidden sm:block">
               <p className="text-xs font-black leading-tight">TRADARA AI</p>
               <p className="text-[10px] text-purple-200">
-                {activeItem ? `Bargain for ${activeItem.title}` : 'Tap to Negotiate'}
+                {activeItem ? `Bargain for ${activeItem.title}` : 'Tap to Explore & Negotiate'}
               </p>
             </div>
           </button>
