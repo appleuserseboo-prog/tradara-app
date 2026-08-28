@@ -2,7 +2,7 @@ import React, { useState, createContext } from "react";
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { 
   PlusCircle, LayoutDashboard, 
-  LogOut, Moon, Sun, ShoppingBag, Home as HomeIcon, User
+  LogOut, Moon, Sun, ShoppingBag, Home as HomeIcon, User, Sparkles
 } from "lucide-react";
 
 import { Home } from "./pages/Home";
@@ -15,6 +15,8 @@ import { ForgotPassword } from "./pages/ForgotPassword";
 import { ResetPasswordPage } from "./pages/ResetPassword";
 import { CartProvider, useCart } from "./context/CartContext"; 
 import { ProductDetail } from './pages/ProductDetails'; 
+import { TradaraAiDrawer } from './components/chat/TradaraAiDrawer';
+import type { ItemContext } from './components/chat/TradaraAiDrawer';
 
 export const AppContext = createContext<any>(null);
 
@@ -23,6 +25,17 @@ const AppContent: React.FC = () => {
   const [user, setUser] = useState<any>(JSON.parse(localStorage.getItem("user") || "null"));
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isAiOpen, setIsAiOpen] = useState(false);
+  const [activeItem, setActiveItem] = useState<ItemContext | null>(null);
+  const [buyerSession] = useState<string>(() => {
+    let session = localStorage.getItem('tradara_buyer_session');
+    if (!session) {
+      session = 'session_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now();
+      localStorage.setItem('tradara_buyer_session', session);
+    }
+    return session;
+  });
+
   const { cart } = useCart(); 
 
   const location = useLocation();
@@ -44,8 +57,8 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <AppContext.Provider value={{ token, user, searchQuery, setSearchQuery, isDarkMode }}>
-      <div className={`${isDarkMode ? 'dark bg-slate-950 text-white' : 'bg-[#F4F7FF] text-slate-900'} min-h-screen transition-colors duration-500 font-sans overflow-x-hidden`}>
+    <AppContext.Provider value={{ token, user, searchQuery, setSearchQuery, isDarkMode, setActiveItem, setIsAiOpen }}>
+      <div className={`${isDarkMode ? 'dark bg-slate-950 text-white' : 'bg-[#F4F7FF] text-slate-900'} min-h-screen transition-colors duration-500 font-sans overflow-x-hidden relative`}>
         
         <nav className={`fixed top-0 w-full z-[100] border-b ${isDarkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-white/80 border-slate-200'} backdrop-blur-xl`}>
           <div className="max-w-7xl mx-auto px-2 h-16 flex items-center justify-between gap-1">
@@ -57,6 +70,17 @@ const AppContent: React.FC = () => {
             <button onClick={() => setIsDarkMode(!isDarkMode)} className="flex flex-col items-center justify-center min-w-[50px] text-slate-500 hover:text-blue-400 transition-all">
               {isDarkMode ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5" />}
               <span className="text-[10px] font-medium mt-0.5">{isDarkMode ? 'Day' : 'Night'}</span>
+            </button>
+
+            {/* Meta AI WhatsApp Style Direct Button in Top Navigation */}
+            <button
+              onClick={() => setIsAiOpen(!isAiOpen)}
+              className="flex flex-col items-center justify-center min-w-[50px] text-purple-500 hover:text-purple-400 transition-all relative"
+            >
+              <div className="p-1 rounded-full bg-gradient-to-tr from-purple-600 via-indigo-600 to-amber-400 text-white shadow-md shadow-purple-500/30">
+                <Sparkles className="w-4 h-4 animate-pulse" />
+              </div>
+              <span className="text-[10px] uppercase mt-0.5 font-bold text-purple-400">Meta AI</span>
             </button>
 
             {token ? (
@@ -107,6 +131,33 @@ const AppContent: React.FC = () => {
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>
+
+        {/* Global Floating Action Button for AI */}
+        {!isAiOpen && (
+          <button
+            onClick={() => setIsAiOpen(true)}
+            className="fixed bottom-6 right-6 z-[90] px-4 py-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white rounded-2xl shadow-2xl border border-purple-400/30 flex items-center gap-2.5 hover:scale-105 transition-all group"
+          >
+            <div className="p-1.5 rounded-lg bg-white/10 group-hover:rotate-12 transition-transform">
+              <Sparkles className="w-5 h-5 animate-pulse" />
+            </div>
+            <div className="text-left hidden sm:block">
+              <p className="text-xs font-black leading-tight">TRADARA AI</p>
+              <p className="text-[10px] text-purple-200">
+                {activeItem ? `Bargain for ${activeItem.title}` : 'Tap to Negotiate'}
+              </p>
+            </div>
+          </button>
+        )}
+
+        {/* TRADARA AI Persistent Drawer */}
+        <TradaraAiDrawer
+          isOpen={isAiOpen}
+          onClose={() => setIsAiOpen(false)}
+          activeItem={activeItem}
+          buyerSession={buyerSession}
+          buyerId={user?.id}
+        />
       </div>
     </AppContext.Provider>
   );
