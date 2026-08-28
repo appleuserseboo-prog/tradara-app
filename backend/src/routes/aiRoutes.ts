@@ -15,8 +15,8 @@ router.post('/config/:itemId', authMiddleware, upsertProductAiConfig);
 router.get('/config/:itemId', getProductAiConfig);
 
 // Buyer AI Interaction Endpoints
-router.post('/chat', handleChatMessage);
-router.get('/history', getNegotiationHistory);
+router.post('/negotiation/chat', handleChatMessage);
+router.get('/negotiation/history', getNegotiationHistory);
 
 // Status Toggle Endpoint (Switch to Human / Re-enable AI)
 router.patch('/session/:sessionId/status', async (req, res) => {
@@ -31,7 +31,7 @@ router.patch('/session/:sessionId/status', async (req, res) => {
       });
     }
 
-    const session = await AiSalesService.updateSessionStatus(sessionId, status);
+    const session = await AiSalesService.updateSessionStatus(sessionId, status as 'active' | 'transferred' | 'closed');
     return res.json({ success: true, session });
   } catch (error: any) {
     console.error('Update Session Status Error:', error);
