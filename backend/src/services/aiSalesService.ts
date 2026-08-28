@@ -5,7 +5,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 export interface ProcessChatMessageInput {
-  itemId: string;
+  itemId?: string;
   buyerSession: string;
   buyerId?: string;
   message: string;
@@ -89,10 +89,10 @@ export class AiSalesService {
   /**
    * Intelligence & Perception Engine: Retrieves historical cross-session marketplace data to adjust negotiation dynamic behavior.
    */
-  private static async gatherMarketplaceIntelligence(itemId: string, buyerId?: string): Promise<MarketplaceIntelligence> {
+  private static async gatherMarketplaceIntelligence(itemId?: string, buyerId?: string): Promise<MarketplaceIntelligence> {
     try {
       // Return default intelligence baseline for non-item general sessions to prevent database lookup failures
-      if (itemId === 'general-ai-session') {
+      if (!itemId || itemId === 'general-ai-session') {
         return {
           itemHistoricalConversions: 0,
           averageAgreedDiscountPercent: 0,
@@ -186,26 +186,33 @@ export class AiSalesService {
     const { itemId, buyerSession, buyerId, message, offeredPrice, quantity = 1, systemPrompt: customSystemPrompt } = input;
 
     // 1. Fetch Item & AI Configuration (Optional for general AI chat sessions)
-    const isGeneralSession = itemId === 'general-ai-session';
+    const isGeneralSession = !itemId || itemId === 'general-ai-session';
     let item: any = null;
 
     if (!isGeneralSession) {
-      item = await (prisma as any).item.findUnique({
-        where: { id: itemId },
-        include: { aiConfig: true, seller: true },
-      });
+      try {
+        item = await (prisma as any).item.findUnique({
+          where: { id: itemId },
+          include: { aiConfig: true, seller: true },
+        });
+      } catch (err) {
+        console.warn('Item lookup bypassed due to invalid format or missing item:', err);
+      }
     }
 
     // 2. Find or Create Negotiation Session
+    // Use null for relational itemId on general-ai-session to avoid Foreign Key violations
+    const dbItemId = isGeneralSession ? null : itemId;
+
     let session = await (prisma as any).aiNegotiationSession.findFirst({
-      where: { itemId, buyerSession },
+      where: { buyerSession, itemId: dbItemId },
       include: { messages: { orderBy: { createdAt: 'asc' } } },
     });
 
     if (!session) {
       session = await (prisma as any).aiNegotiationSession.create({
         data: {
-          itemId,
+          itemId: dbItemId,
           buyerSession,
           buyerId,
           status: 'active',

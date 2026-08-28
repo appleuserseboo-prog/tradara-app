@@ -55,9 +55,9 @@ model Item {
 }
 
 model ProductAiConfig {
-  id     String @id @default(auto()) @map("_id") @db.ObjectId
-  itemId String @unique @db.ObjectId
-  item   Item   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  id      String @id @default(auto()) @map("_id") @db.ObjectId
+  itemId  String @unique @db.ObjectId
+  item    Item   @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   // 1. Core Pricing & Flexibility Strategy
   autoNegotiateEnabled Boolean @default(true)
@@ -72,56 +72,56 @@ model ProductAiConfig {
   bulkDiscountPercent  Float?
 
   // 3. Trade-In & Exchange Policy
-  acceptsTradeIn       Boolean @default(false)
-  tradeInTerms         String?
+  acceptsTradeIn        Boolean @default(false)
+  tradeInTerms          String?
 
   // 4. Bundling & Upselling
-  bundledItems         String?
-  bundleDiscount       Float?
+  bundledItems          String?
+  bundleDiscount        Float?
 
   // 5. Payment Methods & Cash Incentives
-  acceptedPayments     String[] @default(["cash", "transfer"])
+  acceptedPayments      String[] @default(["cash", "transfer"])
   cashDiscountPercent  Float?
 
   // 6. Delivery, Pickup & Logistics
   freeDeliveryEligible Boolean  @default(false)
   deliveryFeeEstimate  Float?
   pickupAddress        String?
-  dispatchTimeline     String?
+  dispatchTimeline      String?
 
   // 7. Urgency & Stock Pressure
-  stockCount           Int      @default(1)
-  urgencyLevel         String   @default("normal") // low, normal, high, clearance
-  expirationDate       DateTime?
+  stockCount            Int      @default(1)
+  urgencyLevel          String   @default("normal") // low, normal, high, clearance
+  expirationDate        DateTime?
 
   // 8. Warranty & Return Policy
-  warrantyPeriod       String?
-  returnPolicyDays     Int?     @default(0)
+  warrantyPeriod        String?
+  returnPolicyDays      Int?     @default(0)
 
   // 9. Condition & Inspection Details
-  productCondition     String   @default("Brand New") // Brand New, Open Box, Refurbished, Used - Like New, Used - Fair
-  knownFlaws           String?
+  productCondition      String   @default("Brand New") // Brand New, Open Box, Refurbished, Used - Like New, Used - Fair
+  knownFlaws            String?
 
   // 10. Product Specs & Features
-  specifications       String?
+  specifications        String?
 
   // 11. Frequently Asked Questions (FAQ)
-  faqKnowledgeBase     String?
+  faqKnowledgeBase      String?
 
   // 12. Buyer Qualification Rules
-  minBuyerRating       Float?
+  minBuyerRating        Float?
 
   // 13. AI Persona & Tone
-  aiTone               String   @default("Professional and Friendly") // Friendly, Firm, Enthusiastic, Corporate
-  greetingMessage      String?
+  aiTone                String   @default("Professional and Friendly") // Friendly, Firm, Enthusiastic, Corporate
+  greetingMessage       String?
 
   // 14. Escalation & Human Handover
   escalateOnThreshold  Float?
-  sellerContactPhone   String?
+  sellerContactPhone    String?
 
   // 15. Analytics Tracking
-  totalNegotiations    Int      @default(0)
-  successfulDeals      Int      @default(0)
+  totalNegotiations     Int      @default(0)
+  successfulDeals       Int      @default(0)
 
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
@@ -129,8 +129,8 @@ model ProductAiConfig {
 
 model AiNegotiationSession {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  itemId       String   @db.ObjectId
-  item         Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  itemId       String?  @db.ObjectId
+  item         Item?    @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   buyerId      String?  @db.ObjectId
   buyer        User?    @relation(fields: [buyerId], references: [id])
