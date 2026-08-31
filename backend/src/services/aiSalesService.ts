@@ -164,18 +164,20 @@ export class AiSalesService {
   ): Promise<void> {
     try {
       // Save continuous interaction record with cognitive analytics metadata
-      await (prisma as any).aiLearningLog.create({
-        data: {
-          sessionId,
-          buyerMessage,
-          aiResponse,
-          perceivedSentiment: perception.sentiment,
-          perceivedUrgency: perception.urgency,
-          detectedIntent: perception.detectedIntent,
-          dealStatus,
-          timestamp: new Date(),
-        },
-      });
+      if ((prisma as any).aiLearningLog) {
+        await (prisma as any).aiLearningLog.create({
+          data: {
+            sessionId,
+            buyerMessage,
+            aiResponse,
+            perceivedSentiment: perception.sentiment,
+            perceivedUrgency: perception.urgency,
+            detectedIntent: perception.detectedIntent,
+            dealStatus,
+            timestamp: new Date(),
+          },
+        });
+      }
     } catch (error) {
       // Non-blocking log persistence error handler
       console.warn('Learning log persistence bypassed:', error);
