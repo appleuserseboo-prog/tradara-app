@@ -163,19 +163,21 @@ export class AiSalesService {
     dealStatus: string
   ): Promise<void> {
     try {
-      // Save continuous interaction record with cognitive analytics metadata
-      await (prisma as any).aiLearningLog.create({
-        data: {
-          sessionId,
-          buyerMessage,
-          aiResponse,
-          perceivedSentiment: perception.sentiment,
-          perceivedUrgency: perception.urgency,
-          detectedIntent: perception.detectedIntent,
-          dealStatus,
-          timestamp: new Date(),
-        },
-      });
+      // Save continuous interaction record with cognitive analytics metadata if model exists
+      if ((prisma as any).aiLearningLog) {
+        await (prisma as any).aiLearningLog.create({
+          data: {
+            sessionId,
+            buyerMessage,
+            aiResponse,
+            perceivedSentiment: perception.sentiment,
+            perceivedUrgency: perception.urgency,
+            detectedIntent: perception.detectedIntent,
+            dealStatus,
+            timestamp: new Date(),
+          },
+        });
+      }
     } catch (error) {
       // Non-blocking log persistence error handler
       console.warn('Learning log persistence bypassed:', error);
@@ -201,7 +203,6 @@ export class AiSalesService {
     }
 
     // 2. Find or Create Negotiation Session
-    // Use null for relational itemId on general-ai-session to avoid Foreign Key violations
     const dbItemId = isGeneralSession ? null : itemId;
 
     let session = await (prisma as any).aiNegotiationSession.findFirst({
@@ -220,7 +221,6 @@ export class AiSalesService {
         include: { messages: true },
       });
     } else if (buyerId && !session.buyerId) {
-      // Backfill buyerId if user was guest and later authenticated
       await (prisma as any).aiNegotiationSession.update({
         where: { id: session.id },
         data: { buyerId },
@@ -269,13 +269,11 @@ export class AiSalesService {
     let dealStatus = session.status;
     let agreedPrice = session.agreedPrice;
 
-    // Check if AI negotiation is configured and enabled for this item
     const isAutoNegotiateActive = Boolean(item && item.aiConfig && item.aiConfig.autoNegotiateEnabled);
 
     // SCENARIO 1: Buyer submitted a structured numeric offer on an active item
     if (offeredPrice && item) {
       if (!isAutoNegotiateActive) {
-        // No AI config or auto-negotiate disabled -> Cannot auto-accept discounts
         aiReply = `Thank you for your offer of ${item.currency || '₦'}${offeredPrice.toLocaleString()}. This item has a fixed price of ${item.currency || '₦'}${item.price.toLocaleString()}. If you would like to negotiate further, please request to connect with a human agent.`;
       } else {
         const result = NegotiationEngine.processOffer(offeredPrice, currentRound, {
@@ -305,10 +303,8 @@ export class AiSalesService {
     // SCENARIO 2: Text question / natural language negotiation / general AI session
     else {
       if (item && !isAutoNegotiateActive && !customSystemPrompt) {
-        // If no AI config exists or auto-negotiation is disabled and no override system prompt, state price is firm
         aiReply = `The price for ${item.stockName || item.title || 'this item'} is fixed at ${item.currency || '₦'}${item.price.toLocaleString()}. Feel free to ask if you have any questions about its specifications!`;
       } else {
-        // Use Gemini with passed or dynamic prompt
         try {
           if (!process.env.GEMINI_API_KEY) {
             throw new Error('GEMINI_API_KEY environment variable is not defined.');
@@ -316,7 +312,6 @@ export class AiSalesService {
 
           const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-          // Assemble Short-Term Memory Context from historic message chain
           const recentHistoryText = (session.messages || [])
             .slice(-6)
             .map((m: any) => `${m.sender.toUpperCase()}: ${m.message}`)
@@ -335,38 +330,26 @@ Your tone: ${item.aiConfig?.aiTone || 'Friendly, professional, and persuasive'}.
 - Minimum Floor Price: ${item.currency || '₦'}${item.aiConfig?.minimumPrice || item.price}
 - Target Discount Price: ${item.currency || '₦'}${item.aiConfig?.targetPrice || item.price}
 - Walkaway Absolute Floor: ${item.currency || '₦'}${item.aiConfig?.walkawayPrice || item.aiConfig?.minimumPrice || item.price}
-- Bulk Purchase Minimum Quantity required for bulk discount: ${item.aiConfig?.bulkMinQuantity ? item.aiConfig.bulkMinQuantity + ' units' : 'N/A (No bulk tier defined)'}
+- Bulk Purchase Minimum Quantity: ${item.aiConfig?.bulkMinQuantity ? item.aiConfig.bulkMinQuantity + ' units' : 'N/A'}
 - Bulk Discount Tier: ${item.aiConfig?.bulkDiscountPercent ? item.aiConfig.bulkDiscountPercent + '% off' : 'N/A'}
-- Condition: ${item.aiConfig?.condition || 'Not specified'}
+- Condition: ${item.aiConfig?.productCondition || item.aiConfig?.condition || 'Brand New'}
 - Specifications: ${item.aiConfig?.specifications || item.description || 'N/A'}
 - Frequently Asked Questions (FAQ): ${item.aiConfig?.faqKnowledgeBase || 'N/A'}
 - Warranty: ${item.aiConfig?.warrantyPeriod || 'N/A'}
-- Pickup / Contact info: ${item.aiConfig?.pickupAddress || 'Available via platform chat'}
-
---- REAL-TIME PERCEPTION & MARKETPLACE INTELLIGENCE ---
-- Perceived Buyer Intent: ${perception.detectedIntent}
-- Perceived Sentiment: ${perception.sentiment}
-- Perceived Urgency: ${perception.urgency}
-- Historical Item Conversion Rate: ${intelligence.itemHistoricalConversions} successful deals closed.
-- Buyer Past Platform Success: ${intelligence.buyerSuccessfulDeals} of ${intelligence.buyerPastNegotiationCount} chats converted.
 
 --- SHORT-TERM SESSION HISTORY ---
 ${recentHistoryText || 'No prior conversation.'}
 
---- NEGOTIATION RULES ---
-1. Answer buyer questions accurately based on the specs, condition, and FAQs above.
-2. NEVER offer a price lower than ${item.currency || '₦'}${item.aiConfig?.minimumPrice || item.price} per unit.
-3. BULK QUANTITY RULE: If the buyer asks for a wholesale or bulk discount, inform them that bulk pricing requires a minimum purchase of ${item.aiConfig?.bulkMinQuantity || 'seller-defined'} units. Do NOT grant bulk discounts for orders below this minimum threshold.
-4. If the buyer asks for "last price", "bottom line", or if price is negotiable for single units:
-   - Acknowledge that discounts are possible.
-   - Do NOT give away the absolute floor (${item.currency || '₦'}${item.aiConfig?.walkawayPrice || item.aiConfig?.minimumPrice || item.price}) immediately.
-   - Proactively suggest a reasonable initial price near ${item.currency || '₦'}${item.aiConfig?.targetPrice || item.price}.
-5. OFF-TOPIC RULE: If the buyer asks questions unrelated to the item or trading on TRADARA (e.g., "what is machine learning"), politely state that you are the product sales assistant for this item, and redirect them back to discuss the item's features or price.
-6. Adapt your response style based on buyer sentiment: If sentiment is frustrated or urgency is high, keep it ultra-direct.
-7. Keep responses concise (2-4 sentences max) suitable for live chat.
+--- NEGOTIATION & INTELLIGENCE RULES ---
+1. Seamlessly handle flexible phrasing for price negotiation such as "last price", "bottom line", "discount", "how much", or "cheaper". Do not repeat canned or static lines; calculate and provide a dynamic, engaging counter-offer or special discount price near your target price.
+2. Answer buyer questions accurately based on specs, condition, and FAQs above.
+3. NEVER offer a price lower than ${item.currency || '₦'}${item.aiConfig?.minimumPrice || item.price} per unit.
+4. Keep responses concise (2-4 sentences max) suitable for live chat.
 `;
             } else {
-              systemPrompt = `You are TRADARA AI, an advanced AI assistant built for TRADARA. Answer general queries, product questions, and provide assistance concisely.`;
+              systemPrompt = `You are TRADARA AI, an advanced, highly intelligent AI assistant built for TRADARA (acting like ChatGPT/Claude). 
+Answer all general inquiries, questions on tech, coding, mathematics, and business insights with absolute precision. 
+If the user inquires about buying, pricing, or negotiating a specific product in this general chat without selecting an item card, briefly answer them and explicitly remind them: "It looks like you're asking about a product price or deal! Please click on a specific product card in our catalog to open its dedicated **TRADARA AI Product Assistant** where we can handle live price negotiations directly."`;
             }
           }
 
@@ -379,29 +362,25 @@ ${recentHistoryText || 'No prior conversation.'}
         } catch (error) {
           console.error("Gemini AI Processing Error:", error);
           
-          // Rule-based deterministic fallback when API key is missing or model fails
           if (item) {
             const minP = item.aiConfig?.minimumPrice || item.price;
             const targetP = item.aiConfig?.targetPrice || item.price;
             const msgLower = message.toLowerCase();
 
-            if (msgLower.includes('how much') || msgLower.includes('price')) {
+            if (msgLower.includes('last price') || msgLower.includes('bottom line') || msgLower.includes('discount') || msgLower.includes('how much') || msgLower.includes('cheaper')) {
+              aiReply = `The listed price for ${item.stockName || item.title || 'this item'} is ${item.currency || '₦'}${item.price.toLocaleString()}. However, for a quick deal right now, I can offer it to you for a special price of ${item.currency || '₦'}${targetP.toLocaleString()}! Shall we lock it in?`;
+            } else if (msgLower.includes('how much') || msgLower.includes('price')) {
               aiReply = `The listed price for ${item.stockName || item.title || 'this item'} is ${item.currency || '₦'}${item.price.toLocaleString()}.`;
-            } else if (msgLower.includes('bottom') || msgLower.includes('negotiable') || msgLower.includes('less') || msgLower.includes('last price') || msgLower.includes('discount')) {
-              if (targetP < item.price) {
-                aiReply = `The listed price is ${item.currency || '₦'}${item.price.toLocaleString()}, but I can offer it to you for ${item.currency || '₦'}${targetP.toLocaleString()} for a quick deal!`;
-              } else if (minP < item.price) {
-                aiReply = `The listed price is ${item.currency || '₦'}${item.price.toLocaleString()}, but we can consider offers down to ${item.currency || '₦'}${minP.toLocaleString()}.`;
-              } else {
-                aiReply = `The price for ${item.stockName || item.title || 'this item'} is firm at ${item.currency || '₦'}${item.price.toLocaleString()}.`;
-              }
-            } else if (msgLower.includes('hi') || msgLower.includes('hello') || msgLower.includes('hey')) {
-              aiReply = `Hello! How can I help you today regarding ${item.stockName || item.title || 'this product'}?`;
             } else {
-              aiReply = `I am TRADARA's sales assistant for ${item.stockName || item.title || 'this item'} (Listed: ${item.currency || '₦'}${item.price.toLocaleString()}). How can I assist you with its details or pricing?`;
+              aiReply = `Regarding ${item.stockName || item.title || 'this item'}: It is crafted with top-tier quality standards. Feel free to ask any specific questions about quality, shipping, or make an offer!`;
             }
           } else {
-            aiReply = `Hello! I am TRADARA AI. How can I help you explore marketplace products or answer your questions today?`;
+            const msgLower = message.toLowerCase();
+            if (msgLower.includes('buy') || msgLower.includes('price') || msgLower.includes('discount') || msgLower.includes('negotiate') || msgLower.includes('last price')) {
+              aiReply = "It looks like you're trying to negotiate or buy a specific item! Please click on a product card to open its dedicated **TRADARA AI Product Assistant** where we can handle price negotiations and deals directly.";
+            } else {
+              aiReply = `I am TRADARA AI, your advanced assistant. You asked: "${message}". While I can assist with general knowledge, code, and platform guidance, you can also explore our catalog and ask me to negotiate prices on any product you choose!`;
+            }
           }
         }
       }
@@ -442,7 +421,6 @@ ${recentHistoryText || 'No prior conversation.'}
     };
   }
 
-  // Method to allow switching session status (Switch to Human / Re-enable AI)
   public static async updateSessionStatus(sessionId: string, status: 'active' | 'transferred' | 'closed') {
     const updatedSession = await (prisma as any).aiNegotiationSession.update({
       where: { id: sessionId },

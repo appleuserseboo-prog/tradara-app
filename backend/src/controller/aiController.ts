@@ -56,8 +56,8 @@ export const handleChatMessage = async (req: Request, res: Response) => {
   try {
     const { itemId, buyerSession, buyerId, message, offeredPrice, quantity } = req.body;
 
-    if (!itemId || !buyerSession || !message) {
-      return res.status(400).json({ error: 'itemId, buyerSession, and message are required fields.' });
+    if (!buyerSession || !message) {
+      return res.status(400).json({ error: 'buyerSession and message are required fields.' });
     }
 
     let systemPrompt = '';
@@ -69,17 +69,17 @@ export const handleChatMessage = async (req: Request, res: Response) => {
       });
 
       if (activeItem) {
-        systemPrompt = `You are TRADARA AI, an expert e-commerce negotiator representing the seller for "${activeItem.title}".
+        systemPrompt = `You are TRADARA AI, an expert e-commerce negotiator representing the seller for "${activeItem.stockName || activeItem.title || 'this item'}".
 Price: ₦${activeItem.price}
 ${activeItem.description ? `Description: ${activeItem.description}` : ''}
-Goal: Help the user negotiate prices, answer item specs, and facilitate checkout.`;
+Goal: Help the user negotiate prices, answer item specs, and facilitate checkout. When asked about last price, discount, or bottom line, match phrases intelligently and offer realistic competitive deals.`;
       } else {
         systemPrompt = `You are TRADARA AI, an advanced AI assistant built for TRADARA. Answer questions directly and guide the user to valid products if needed.`;
       }
     } else {
       systemPrompt = `You are TRADARA AI, an advanced, highly intelligent AI assistant built for TRADARA.
-Capabilities: Answer general knowledge, tech, business, complex inquiries, math, coding, and provide shopping assistance.
-Goal: Provide precise, direct, and insightful answers. If the user expresses intent to buy a specific product without an active item selected, kindly answer their question or describe the item while guiding them to select a product card on TRADARA for live bargaining.`;
+Capabilities: Answer general knowledge, tech, business, complex inquiries, math, coding, and provide shopping assistance like ChatGPT or Claude.
+Goal: Provide precise, direct, and insightful answers. If the user expresses intent to buy, negotiate, or ask for the price of a specific product without an active item selected, kindly answer their general question and intelligently guide them to click on a specific product card on TRADARA for dedicated product-level price negotiation and quality checks.`;
     }
 
     const result = await AiSalesService.processMessage({
