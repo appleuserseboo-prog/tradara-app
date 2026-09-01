@@ -3,14 +3,12 @@
 // ==========================================
 
 import { Request, Response } from 'express';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { buildTradaraSystemInstruction, ProductContext } from '../ai/prompts/tradaraPromptBuilder';
 import { NegotiationEngine, NegotiationRules } from '../services/negotiationEngine';
 
 // Initialize the Gemini client using the environment key
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-});
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 export interface ChatMessageHistoryItem {
   role: 'user' | 'model';
@@ -89,34 +87,36 @@ export const handleAiChat = async (req: Request<{}, {}, ChatRequestBody>, res: R
       userName: (req as any).user?.name || undefined,
     });
 
-    // Format chat history for Gemini SDK
+    // Format chat history for @google/generative-ai SDK
     const formattedHistory = history.map((item) => ({
       role: item.role === 'user' ? 'user' : 'model',
       parts: item.parts || [{ text: '' }],
     }));
 
-    // Create a stateful Gemini Chat session using gemini-2.5-flash
-    const chatSession = ai.chats.create({
-      model: 'gemini-2.5-flash',
-      history: formattedHistory,
-      config: {
-        systemInstruction,
+    // Initialize Generative Model with systemInstruction and low temperature
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      systemInstruction: systemInstruction,
+      generationConfig: {
         temperature: 0.3, // Low temperature keeps Gemini anchored to system guardrails
       },
     });
 
-    // If numerical offer was evaluated by engine, inject result as context context hint
+    // Start stateful chat session
+    const chatSession = model.startChat({
+      history: formattedHistory,
+    });
+
+    // If numerical offer was evaluated by engine, inject result as context hint
     let finalPromptMessage = message.trim();
     if (negotiationResult) {
       finalPromptMessage += `\n[SYSTEM GUARDRAIL CHECK]: User offered ${extractedOffer}. Negotiation Engine status: ${negotiationResult.status}. Dynamic Counter-Offer: ${negotiationResult.counterOffer || negotiationResult.agreedPrice || processedProduct?.minPrice}. Respond naturally using this math.`;
     }
 
     // Send latest user input to Gemini
-    const result = await chatSession.sendMessage({
-      message: finalPromptMessage,
-    });
-
-    const aiResponseText = result.text || "I'm sorry, I couldn't generate a response. Please try again.";
+    const result = await chatSession.sendMessage(finalPromptMessage);
+    const response = await result.response;
+    const aiResponseText = response.text() || "I'm sorry, I couldn't generate a response. Please try again.";
 
     // Parse discount chips for frontend UI
     let quickOffers = null;
