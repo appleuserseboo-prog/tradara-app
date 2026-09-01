@@ -1,3 +1,7 @@
+// ==========================================
+// FILE: backend/src/services/negotiationEngine.ts
+// ==========================================
+
 export interface NegotiationRules {
   minimumPrice: number;
   targetPrice: number;
