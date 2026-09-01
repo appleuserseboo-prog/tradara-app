@@ -52,7 +52,10 @@ export class ModelRouter {
 
   public resolveProvider(options?: RouteRequestOptions): IAiProvider {
     if (options?.preferredProvider && this.providers.has(options.preferredProvider.toLowerCase())) {
-      return this.providers.get(options.preferredProvider.toLowerCase())!;
+      const preferred = this.providers.get(options.preferredProvider.toLowerCase())!;
+      if (preferred.name !== 'openai' || process.env.OPENAI_API_KEY) {
+        return preferred;
+      }
     }
 
     if (options?.complexity === 'complex' || options?.complexity === 'analytical') {
