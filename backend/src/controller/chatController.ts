@@ -7,7 +7,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { buildTradaraSystemInstruction, ProductContext } from '../ai/prompts/tradaraPromptBuilder';
 import { NegotiationEngine, NegotiationRules } from '../services/negotiationEngine';
 
-// Initialize the Gemini client using the environment key
+// Initialize the Gemini SDK client
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 export interface ChatMessageHistoryItem {
@@ -24,7 +24,7 @@ export interface ChatRequestBody {
 }
 
 /**
- * Controller handling user interactions with TRADARA AI powered by Gemini.
+ * Express Controller handling user interactions with TRADARA AI powered by Gemini.
  */
 export const handleAiChat = async (req: Request<{}, {}, ChatRequestBody>, res: Response): Promise<void> => {
   try {
@@ -38,23 +38,30 @@ export const handleAiChat = async (req: Request<{}, {}, ChatRequestBody>, res: R
       return;
     }
 
-    // Extract potential numeric price offer from user text (e.g. "can I get it for 50000" -> 50000)
-    const priceMatch = message.match(/(?:₦|N|NGN|\$)?\s?(\d{1,3}(?:,\d{3})*|\d+)/i);
+    const cleanUserMessage = message.trim();
+
+    // Parse potential numeric price offer from user text (e.g., "50k", "₦50,000", "50000")
     let extractedOffer: number | null = null;
-    if (priceMatch && priceMatch[1]) {
-      const cleanNum = priceMatch[1].replace(/,/g, '');
-      const parsed = parseFloat(cleanNum);
-      if (!isNaN(parsed) && parsed > 0) {
-        extractedOffer = parsed;
+    const kMatch = cleanUserMessage.match(/(?:₦|N|NGN|\$)?\s?(\d+(?:\.\d+)?)\s?k\b/i);
+    if (kMatch) {
+      extractedOffer = parseFloat(kMatch[1]) * 1000;
+    } else {
+      const priceMatch = cleanUserMessage.match(/(?:₦|N|NGN|\$)?\s?(\d{1,3}(?:,\d{3})+|\d+)/i);
+      if (priceMatch && priceMatch[1]) {
+        const cleanNum = priceMatch[1].replace(/,/g, '');
+        const parsed = parseFloat(cleanNum);
+        if (!isNaN(parsed) && parsed > 0) {
+          extractedOffer = parsed;
+        }
       }
     }
 
-    // Safety check & Floor price guardrail enforcement
     let processedProduct: ProductContext | undefined = undefined;
     let negotiationResult: any = null;
 
     if (product && product.listPrice) {
       const listPrice = Number(product.listPrice);
+      // Strict minimum price calculation: default to 15% max discount (85% of list price)
       const minPrice = product.minPrice ? Number(product.minPrice) : Math.round(listPrice * 0.85);
 
       processedProduct = {
@@ -63,62 +70,73 @@ export const handleAiChat = async (req: Request<{}, {}, ChatRequestBody>, res: R
         minPrice,
       };
 
-      // If buyer sent a specific numeric offer, evaluate through strict TypeScript negotiation engine
-      if (extractedOffer !== null) {
-        const rules: NegotiationRules = {
-          minimumPrice: minPrice,
-          targetPrice: listPrice,
-          walkawayPrice: minPrice,
-          discountStepPercent: negotiationRules?.discountStepPercent || 5,
-          maxDiscountRounds: negotiationRules?.maxDiscountRounds || 3,
-          autoNegotiateEnabled: negotiationRules?.autoNegotiateEnabled ?? true,
-          bulkMinQuantity: negotiationRules?.bulkMinQuantity || 0,
-          bulkDiscountPercent: negotiationRules?.bulkDiscountPercent || 0,
-          requestedQuantity: negotiationRules?.requestedQuantity || 1,
-        };
+      // Rules setup for NegotiationEngine
+      const rules: NegotiationRules = {
+        minimumPrice: minPrice,
+        targetPrice: listPrice,
+        walkawayPrice: minPrice,
+        discountStepPercent: negotiationRules?.discountStepPercent || 5,
+        maxDiscountRounds: negotiationRules?.maxDiscountRounds || 3,
+        autoNegotiateEnabled: negotiationRules?.autoNegotiateEnabled ?? true,
+        bulkMinQuantity: negotiationRules?.bulkMinQuantity || 0,
+        bulkDiscountPercent: negotiationRules?.bulkDiscountPercent || 0,
+        requestedQuantity: negotiationRules?.requestedQuantity || 1,
+      };
 
+      // Process offer if explicit number is present
+      if (extractedOffer !== null) {
         negotiationResult = NegotiationEngine.processOffer(extractedOffer, currentRound, rules);
+      } else if (/\b(last|bottom|least|discount|cheapest|reduce|offer)\b/i.test(cleanUserMessage)) {
+        // Handle qualitative discount inquiries without dropping below floor price
+        negotiationResult = {
+          status: 'COUNTER',
+          counterOffer: Math.round(listPrice * 0.95), // Start counter-offer at 5% off
+          minAllowed: minPrice,
+        };
       }
     }
 
-    // Generate dynamic system prompt instructions based on product context
+    // Build concise dynamic prompt instruction
     const systemInstruction = buildTradaraSystemInstruction({
       product: processedProduct,
       userName: (req as any).user?.name || undefined,
     });
 
-    // Format chat history for @google/generative-ai SDK
+    // Clean and sanitize chat history format for Gemini SDK
     const formattedHistory = history.map((item) => ({
       role: item.role === 'user' ? 'user' : 'model',
-      parts: item.parts || [{ text: '' }],
+      parts: item.parts && item.parts.length > 0 ? item.parts : [{ text: '' }],
     }));
 
-    // Initialize Generative Model with systemInstruction and low temperature
+    // Instantiate Gemini Model
     const model = genAI.getGenerativeModel({
       model: 'gemini-1.5-flash',
       systemInstruction: systemInstruction,
       generationConfig: {
-        temperature: 0.3, // Low temperature keeps Gemini anchored to system guardrails
+        temperature: 0.2, // Kept low to prevent off-script hallucinations
+        maxOutputTokens: 500,
       },
     });
 
-    // Start stateful chat session
+    // Start Chat Session
     const chatSession = model.startChat({
       history: formattedHistory,
     });
 
-    // If numerical offer was evaluated by engine, inject result as context hint
-    let finalPromptMessage = message.trim();
-    if (negotiationResult) {
-      finalPromptMessage += `\n[SYSTEM GUARDRAIL CHECK]: User offered ${extractedOffer}. Negotiation Engine status: ${negotiationResult.status}. Dynamic Counter-Offer: ${negotiationResult.counterOffer || negotiationResult.agreedPrice || processedProduct?.minPrice}. Respond naturally using this math.`;
+    // Append deterministic backend math constraints to user prompt
+    let finalPromptMessage = cleanUserMessage;
+    if (processedProduct && negotiationResult) {
+      finalPromptMessage += `\n\n[SYSTEM GUARDRAIL]: Product List Price = ₦${processedProduct.listPrice.toLocaleString()}, Minimum Floor Price = ₦${processedProduct.minPrice.toLocaleString()}. `;
+      if (negotiationResult.counterOffer) {
+        finalPromptMessage += `Engine suggested counter-offer = ₦${negotiationResult.counterOffer.toLocaleString()}. NEVER offer any amount below ₦${processedProduct.minPrice.toLocaleString()}.`;
+      }
     }
 
-    // Send latest user input to Gemini
     const result = await chatSession.sendMessage(finalPromptMessage);
     const response = await result.response;
-    const aiResponseText = response.text() || "I'm sorry, I couldn't generate a response. Please try again.";
+    const aiResponseText = response.text() || "I am available to answer questions or discuss product options.";
 
-    // Parse discount chips for frontend UI
+    // Generate quick discount chips for UI rendering
     let quickOffers = null;
     if (processedProduct) {
       const list = processedProduct.listPrice;
@@ -144,7 +162,7 @@ export const handleAiChat = async (req: Request<{}, {}, ChatRequestBody>, res: R
 
     res.status(500).json({
       success: false,
-      error: 'An error occurred while communicating with TRADARA AI.',
+      error: 'An error occurred while processing your request.',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
