@@ -24,7 +24,7 @@ export interface ChatRequestBody {
 }
 
 /**
- * Express Controller handling user interactions with TRADARA AI powered by Gemini.
+ * Controller handling intelligent multi-turn interaction with TRADARA AI.
  */
 export const handleAiChat = async (req: Request<{}, {}, ChatRequestBody>, res: Response): Promise<void> => {
   try {
@@ -40,7 +40,7 @@ export const handleAiChat = async (req: Request<{}, {}, ChatRequestBody>, res: R
 
     const cleanUserMessage = message.trim();
 
-    // Parse potential numeric price offer from user text (e.g., "50k", "₦50,000", "50000")
+    // 1. Extract explicit numeric offers (e.g., "50k", "₦50,000", "50000")
     let extractedOffer: number | null = null;
     const kMatch = cleanUserMessage.match(/(?:₦|N|NGN|\$)?\s?(\d+(?:\.\d+)?)\s?k\b/i);
     if (kMatch) {
@@ -59,9 +59,10 @@ export const handleAiChat = async (req: Request<{}, {}, ChatRequestBody>, res: R
     let processedProduct: ProductContext | undefined = undefined;
     let negotiationResult: any = null;
 
+    // 2. Evaluate pricing & negotiation bounds
     if (product && product.listPrice) {
       const listPrice = Number(product.listPrice);
-      // Strict minimum price calculation: default to 15% max discount (85% of list price)
+      // Floor limit set to maximum 15% discount unless explicitly passed
       const minPrice = product.minPrice ? Number(product.minPrice) : Math.round(listPrice * 0.85);
 
       processedProduct = {
@@ -70,7 +71,6 @@ export const handleAiChat = async (req: Request<{}, {}, ChatRequestBody>, res: R
         minPrice,
       };
 
-      // Rules setup for NegotiationEngine
       const rules: NegotiationRules = {
         minimumPrice: minPrice,
         targetPrice: listPrice,
@@ -83,60 +83,72 @@ export const handleAiChat = async (req: Request<{}, {}, ChatRequestBody>, res: R
         requestedQuantity: negotiationRules?.requestedQuantity || 1,
       };
 
-      // Process offer if explicit number is present
       if (extractedOffer !== null) {
         negotiationResult = NegotiationEngine.processOffer(extractedOffer, currentRound, rules);
-      } else if (/\b(last|bottom|least|discount|cheapest|reduce|offer)\b/i.test(cleanUserMessage)) {
-        // Handle qualitative discount inquiries without dropping below floor price
+      } else if (/\b(last|bottom|least|discount|cheapest|reduce|offer|price|how much)\b/i.test(cleanUserMessage)) {
+        // Calculate counter offer (e.g., 10% discount for general discount inquiry)
+        const dynamicCounter = Math.max(minPrice, Math.round(listPrice * 0.90));
         negotiationResult = {
-          status: 'COUNTER',
-          counterOffer: Math.round(listPrice * 0.95), // Start counter-offer at 5% off
-          minAllowed: minPrice,
+          status: 'countered',
+          counterOffer: dynamicCounter,
+          message: `Listed price is ₦${listPrice.toLocaleString()}, but I can offer ₦${dynamicCounter.toLocaleString()} right now.`,
         };
       }
     }
 
-    // Build concise dynamic prompt instruction
+    // 3. Build dynamic instructions
     const systemInstruction = buildTradaraSystemInstruction({
       product: processedProduct,
       userName: (req as any).user?.name || undefined,
     });
 
-    // Clean and sanitize chat history format for Gemini SDK
-    const formattedHistory = history.map((item) => ({
-      role: item.role === 'user' ? 'user' : 'model',
-      parts: item.parts && item.parts.length > 0 ? item.parts : [{ text: '' }],
-    }));
+    // 4. Sanitize history to strip past robotic loops and empty tokens
+    const formattedHistory = history
+      .filter((item) => {
+        const text = item.parts?.[0]?.text || '';
+        return (
+          !text.includes('I am fully equipped to answer general questions') &&
+          !text.includes('You asked:') &&
+          !text.includes('Thank you for asking about')
+        );
+      })
+      .map((item) => ({
+        role: item.role === 'user' ? 'user' : 'model',
+        parts: item.parts && item.parts.length > 0 ? item.parts : [{ text: '' }],
+      }));
 
-    // Instantiate Gemini Model
+    // 5. Initialize Generative Model
     const model = genAI.getGenerativeModel({
       model: 'gemini-1.5-flash',
-      systemInstruction: systemInstruction,
+      systemInstruction,
       generationConfig: {
-        temperature: 0.2, // Kept low to prevent off-script hallucinations
-        maxOutputTokens: 500,
+        temperature: 0.25,
+        maxOutputTokens: 600,
       },
     });
 
-    // Start Chat Session
-    const chatSession = model.startChat({
-      history: formattedHistory,
-    });
-
-    // Append deterministic backend math constraints to user prompt
-    let finalPromptMessage = cleanUserMessage;
-    if (processedProduct && negotiationResult) {
-      finalPromptMessage += `\n\n[SYSTEM GUARDRAIL]: Product List Price = ₦${processedProduct.listPrice.toLocaleString()}, Minimum Floor Price = ₦${processedProduct.minPrice.toLocaleString()}. `;
-      if (negotiationResult.counterOffer) {
-        finalPromptMessage += `Engine suggested counter-offer = ₦${negotiationResult.counterOffer.toLocaleString()}. NEVER offer any amount below ₦${processedProduct.minPrice.toLocaleString()}.`;
-      }
+    // 6. Formulate precise context prompt
+    let promptToSend = cleanUserMessage;
+    if (processedProduct && negotiationResult && negotiationResult.counterOffer) {
+      promptToSend = `[COMMERCE ENGINE DIRECTIVE]: User requested price/discount ("${cleanUserMessage}"). Listed price: ₦${processedProduct.listPrice.toLocaleString()}. Calculated target counter-offer: ₦${negotiationResult.counterOffer.toLocaleString()} (Floor Limit: ₦${processedProduct.minPrice.toLocaleString()}). Offer them ₦${negotiationResult.counterOffer.toLocaleString()} as our best deal. Do not quote the list price without giving this counter-offer.`;
     }
 
-    const result = await chatSession.sendMessage(finalPromptMessage);
+    const chatSession = model.startChat({ history: formattedHistory });
+    const result = await chatSession.sendMessage(promptToSend);
     const response = await result.response;
-    const aiResponseText = response.text() || "I am available to answer questions or discuss product options.";
+    let aiResponseText = response.text()?.trim() || '';
 
-    // Generate quick discount chips for UI rendering
+    // 7. Hard-Guard Fallback: Enforce counter-offer in response text if LLM misses the number on price requests
+    if (
+      processedProduct &&
+      negotiationResult?.counterOffer &&
+      /\b(last|bottom|least|discount|cheapest)\b/i.test(cleanUserMessage) &&
+      !aiResponseText.includes(negotiationResult.counterOffer.toLocaleString())
+    ) {
+      aiResponseText = `The listed price for ${processedProduct.name} is ₦${processedProduct.listPrice.toLocaleString()}, but I can offer it to you for ₦${negotiationResult.counterOffer.toLocaleString()} as our best price right now.`;
+    }
+
+    // Quick discount chips for frontend UI
     let quickOffers = null;
     if (processedProduct) {
       const list = processedProduct.listPrice;
