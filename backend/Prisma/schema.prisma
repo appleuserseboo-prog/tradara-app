@@ -11,6 +11,32 @@ generator client {
   provider = "prisma-client-js"
 }
 
+enum SessionStatus {
+  ACTIVE
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+enum NegotiatorPersona {
+  AGGRESSIVE
+  BALANCED
+  FLEXIBLE
+}
+
+enum SenderType {
+  BUYER
+  SELLER
+  AI
+}
+
+enum ActionType {
+  ACCEPT
+  REJECT
+  COUNTER
+}
+
 model User {
   id                   String                 @id @default(auto()) @map("_id") @db.ObjectId
   email                String                 @unique
@@ -205,4 +231,42 @@ model AiAuditLog {
 
   @@index([userId])
   @@index([createdAt])
+}
+
+model NegotiationSession {
+  id           String            @id @map("_id")
+  productId    String
+  productName  String
+  listPrice    Float
+  floorPrice   Float
+  currentPrice Float
+  status       SessionStatus     @default(ACTIVE)
+  buyerPhone   String
+  channel      String            @default("WhatsApp")
+  aiPersona    NegotiatorPersona @default(BALANCED)
+  maxRounds    Int               @default(5)
+  currentRound Int               @default(1)
+  rounds       OfferRound[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@map("negotiation_sessions")
+}
+
+model OfferRound {
+  id               String             @id @default(auto()) @map("_id") @db.ObjectId
+  sessionId        String
+  session          NegotiationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  roundNumber      Int
+  sender           SenderType
+  offerAmount      Float
+  buyerMessage     String?
+  aiAction         ActionType?
+  aiCounterAmount  Float?
+  aiReasoning      String?
+  aiBuyerResponse  String?
+  isManualOverride Boolean            @default(false)
+  createdAt        DateTime           @default(now())
+
+  @@map("offer_rounds")
 }

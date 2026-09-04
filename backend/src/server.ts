@@ -7,6 +7,9 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit'; 
 import apiRoutes from './routes/index'; 
 import whatsappRoutes from './routes/whatsappRoutes';
+import { whatsappRouter } from './routes/whatsappWebhook';
+import overrideRouter from './routes/negotiateOverride';
+import dashboardSessionsRouter from './routes/dashboardSessions';
 import prisma from './lib/prisma'; //  Now using the singleton client
 
 dotenv.config();
@@ -38,7 +41,7 @@ const authLimiter = rateLimit({
 const io = new Server(httpServer, {
     cors: {
         origin: allowedOrigins, 
-        methods: ["GET", "POST"],
+        methods: ["GET", "POST", "PUT", "DELETE"],
         credentials: true
     }
 });
@@ -75,7 +78,10 @@ io.on("connection", (socket) => {
     console.log(`[SOCKET] User connected: ${socket.id}`);
 });
 
+app.use('/api/webhook/whatsapp', whatsappRouter);
 app.use('/api/whatsapp', whatsappRoutes);
+app.use('/api/negotiate/override', overrideRouter);
+app.use('/api/dashboard/sessions', dashboardSessionsRouter);
 app.use('/api', apiRoutes); 
 
 app.use((err: any, req: any, res: any, next: any) => {
@@ -87,6 +93,6 @@ app.use((err: any, req: any, res: any, next: any) => {
 });
 
 httpServer.listen(PORT, () => {
-    console.log(`\n🚀 [BACKEND] Tradara Server running.`);
+    console.log(`\n🚀 [BACKEND] Tradara Server running on port ${PORT}.`);
     console.log(`📂 [PRISMA] Singleton Client recognized.`);
 });
