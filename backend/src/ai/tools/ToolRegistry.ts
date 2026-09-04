@@ -1,3 +1,7 @@
+// ==========================================
+// FILE: backend/src/ai/tools/toolRegistry.ts
+// ==========================================
+
 import { ToolDefinition, RegisteredToolMap, SecurityContext, ToolExecutionResult } from './types';
 import { productTools } from './productTools';
 import { orderTools } from './orderTools';
@@ -45,9 +49,17 @@ export class ToolRegistry {
     return Object.values(this.tools);
   }
 
+  public getAllDefinitions() {
+    return Object.values(this.tools).map((t) => ({
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters,
+    }));
+  }
+
   public getToolsForRole(role: string): ToolDefinition[] {
     return Object.values(this.tools).filter((tool) =>
-      tool.allowedRoles.includes(role as any)
+      tool.allowedRoles ? tool.allowedRoles.includes(role as any) : true
     );
   }
 
@@ -67,11 +79,11 @@ export class ToolRegistry {
       };
     }
 
-    if (!tool.allowedRoles.includes(context.role)) {
+    if (tool.allowedRoles && !tool.allowedRoles.includes(context.role)) {
       return {
         success: false,
         error: `Access Denied: Role '${context.role}' does not have permission to execute tool '${toolName}'.`,
-        riskLevel: tool.riskLevel
+        riskLevel: tool.riskLevel || 'READ'
       };
     }
 
@@ -89,12 +101,23 @@ export class ToolRegistry {
     }
 
     try {
-      return await tool.handler(params, context);
+      if (typeof tool.handler === 'function') {
+        return await tool.handler(params, context);
+      } else if (typeof tool.execute === 'function') {
+        const data = await tool.execute(params, context);
+        return {
+          success: true,
+          data,
+          riskLevel: tool.riskLevel || 'READ'
+        };
+      } else {
+        throw new Error(`Tool '${toolName}' missing execution implementation.`);
+      }
     } catch (error: any) {
       return {
         success: false,
         error: error.message || `An error occurred while executing tool '${toolName}'.`,
-        riskLevel: tool.riskLevel
+        riskLevel: tool.riskLevel || 'READ'
       };
     }
   }

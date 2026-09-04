@@ -1,4 +1,20 @@
+// ==========================================
+// FILE: backend/src/ai/tools/productTools.ts
+// ==========================================
+
 import { ToolDefinition, SecurityContext, ToolExecutionResult } from './types';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+// Static exchange rates fallback table relative to NGN (Nigerian Naira)
+const EXCHANGE_RATES: Record<string, number> = {
+  USD: 1620.0,  // 1 USD = 1620 NGN
+  EUR: 1750.0,  // 1 EUR = 1750 NGN
+  GBP: 2050.0,  // 1 GBP = 2050 NGN
+  CAD: 1180.0,  // 1 CAD = 1180 NGN
+  NGN: 1.0,     // Base Currency
+};
 
 // Mock/Fallback Service Interface to satisfy module resolution
 class ProductService {
@@ -68,6 +84,9 @@ export const searchProductsTool: ToolDefinition<SearchProductsParams> = {
         riskLevel: 'READ'
       };
     }
+  },
+  execute: async (params, context) => {
+    return await productService.searchProductsWithVector(params);
   }
 };
 
@@ -105,6 +124,9 @@ export const getProductDetailsTool: ToolDefinition<GetProductDetailsParams> = {
         riskLevel: 'READ'
       };
     }
+  },
+  execute: async (params, context) => {
+    return await productService.findProductById(params.productId);
   }
 };
 
@@ -149,11 +171,220 @@ export const updateStockTool: ToolDefinition<UpdateStockParams> = {
         riskLevel: 'EXECUTE'
       };
     }
+  },
+  execute: async (params, context) => {
+    return await productService.updateInventoryStock(
+      params.productId,
+      params.quantity,
+      context.storeId
+    );
   }
 };
 
-export const productTools = [
+/**
+ * 1. Product Catalog Search Tool Definition (Prisma ORM)
+ */
+export const searchProductCatalogTool: ToolDefinition = {
+  name: 'search_product_catalog',
+  description: 'Search for marketplace items by keywords, category, or price range. Useful for finding available products for buyers.',
+  allowedRoles: ['GUEST', 'BUYER', 'SELLER', 'ADMIN'],
+  riskLevel: 'READ',
+  parameters: {
+    type: 'object',
+    properties: {
+      query: {
+        type: 'string',
+        description: 'Keyword or product name to search for (e.g. "iPhone 15", "generator")',
+      },
+      category: {
+        type: 'string',
+        description: 'Optional category filter (e.g. "Electronics", "Fashion")',
+      },
+      minPrice: {
+        type: 'number',
+        description: 'Minimum price filter in NGN',
+      },
+      maxPrice: {
+        type: 'number',
+        description: 'Maximum price filter in NGN',
+      },
+      limit: {
+        type: 'number',
+        description: 'Maximum number of results to return (default: 5)',
+      },
+    },
+    required: ['query'],
+  },
+  handler: async (params: any, context: SecurityContext): Promise<ToolExecutionResult> => {
+    try {
+      const { query, category, minPrice, maxPrice, limit = 5 } = params;
+
+      const whereClause: any = {
+        OR: [
+          { stockName: { contains: query, mode: 'insensitive' } },
+          { description: { contains: query, mode: 'insensitive' } },
+        ],
+      };
+
+      if (category) {
+        whereClause.category = { contains: category, mode: 'insensitive' };
+      }
+
+      if (minPrice !== undefined || maxPrice !== undefined) {
+        whereClause.price = {};
+        if (minPrice !== undefined) whereClause.price.gte = Number(minPrice);
+        if (maxPrice !== undefined) whereClause.price.lte = Number(maxPrice);
+      }
+
+      const products = await prisma.item.findMany({
+        where: whereClause,
+        take: Number(limit),
+        select: {
+          id: true,
+          stockName: true,
+          price: true,
+          currency: true,
+          category: true,
+          description: true,
+          canBargain: true,
+          images: true,
+          city: true,
+          country: true,
+          seller: {
+            select: {
+              name: true,
+              isVerified: true,
+            },
+          },
+        },
+      });
+
+      return {
+        success: true,
+        data: {
+          count: products.length,
+          products,
+        },
+        riskLevel: 'READ',
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: `Product search failed: ${error.message}`,
+        riskLevel: 'READ',
+      };
+    }
+  },
+  execute: async (params: any, context: SecurityContext) => {
+    const { query, category, minPrice, maxPrice, limit = 5 } = params;
+    const whereClause: any = {
+      OR: [
+        { stockName: { contains: query, mode: 'insensitive' } },
+        { description: { contains: query, mode: 'insensitive' } },
+      ],
+    };
+    if (category) whereClause.category = { contains: category, mode: 'insensitive' };
+    if (minPrice !== undefined || maxPrice !== undefined) {
+      whereClause.price = {};
+      if (minPrice !== undefined) whereClause.price.gte = Number(minPrice);
+      if (maxPrice !== undefined) whereClause.price.lte = Number(maxPrice);
+    }
+    return await prisma.item.findMany({
+      where: whereClause,
+      take: Number(limit),
+    });
+  }
+};
+
+/**
+ * 2. Live Currency Converter Tool Definition
+ */
+export const currencyConverterTool: ToolDefinition = {
+  name: 'convert_currency',
+  description: 'Convert prices between major global currencies (NGN, USD, EUR, GBP, CAD) for cross-border trade calculations.',
+  allowedRoles: ['GUEST', 'BUYER', 'SELLER', 'ADMIN'],
+  riskLevel: 'READ',
+  parameters: {
+    type: 'object',
+    properties: {
+      amount: {
+        type: 'number',
+        description: 'Monetary amount to convert',
+      },
+      fromCurrency: {
+        type: 'string',
+        description: 'Source 3-letter currency code (e.g. NGN, USD, EUR)',
+      },
+      toCurrency: {
+        type: 'string',
+        description: 'Target 3-letter currency code (e.g. USD, NGN, GBP)',
+      },
+    },
+    required: ['amount', 'fromCurrency', 'toCurrency'],
+  },
+  handler: async (params: any, context: SecurityContext): Promise<ToolExecutionResult> => {
+    try {
+      const amount = Number(params.amount);
+      const from = String(params.fromCurrency).toUpperCase();
+      const to = String(params.toCurrency).toUpperCase();
+
+      if (isNaN(amount) || amount < 0) {
+        return {
+          success: false,
+          error: 'Invalid amount provided for currency conversion.',
+          riskLevel: 'READ',
+        };
+      }
+
+      if (!EXCHANGE_RATES[from] || !EXCHANGE_RATES[to]) {
+        return {
+          success: false,
+          error: `Unsupported currency conversion from ${from} to ${to}. Supported: USD, EUR, GBP, CAD, NGN.`,
+          riskLevel: 'READ',
+        };
+      }
+
+      const amountInNGN = amount * EXCHANGE_RATES[from];
+      const convertedAmount = amountInNGN / EXCHANGE_RATES[to];
+      const roundedResult = Math.round(convertedAmount * 100) / 100;
+
+      return {
+        success: true,
+        data: {
+          originalAmount: amount,
+          fromCurrency: from,
+          toCurrency: to,
+          convertedAmount: roundedResult,
+          formatted: `${to} ${roundedResult.toLocaleString()}`,
+          rateUsed: EXCHANGE_RATES[from] / EXCHANGE_RATES[to],
+        },
+        riskLevel: 'READ',
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: `Currency conversion failed: ${error.message}`,
+        riskLevel: 'READ',
+      };
+    }
+  },
+  execute: async (params: any, context: SecurityContext) => {
+    const amount = Number(params.amount);
+    const from = String(params.fromCurrency).toUpperCase();
+    const to = String(params.toCurrency).toUpperCase();
+    const amountInNGN = amount * EXCHANGE_RATES[from];
+    const convertedAmount = amountInNGN / EXCHANGE_RATES[to];
+    return Math.round(convertedAmount * 100) / 100;
+  }
+};
+
+/**
+ * Product Tools Array Exported for ToolRegistry Initialization
+ */
+export const productTools: ToolDefinition[] = [
   searchProductsTool,
   getProductDetailsTool,
-  updateStockTool
+  updateStockTool,
+  searchProductCatalogTool,
+  currencyConverterTool,
 ];

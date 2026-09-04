@@ -1,3 +1,7 @@
+// ==========================================
+// FILE: backend/src/ai/tools/types.ts
+// ==========================================
+
 import type { Request } from 'express';
 
 export type RiskLevel = 'READ' | 'RECOMMEND' | 'PREPARE' | 'EXECUTE';
@@ -14,7 +18,7 @@ export interface SecurityContext {
 }
 
 export interface ToolParameterSchema {
-  type: 'string' | 'number' | 'boolean' | 'object' | 'array';
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'STRING' | 'NUMBER' | 'BOOLEAN' | 'OBJECT' | 'ARRAY';
   description: string;
   required?: boolean;
   enum?: string[];
@@ -23,7 +27,7 @@ export interface ToolParameterSchema {
 }
 
 export interface ToolParameters {
-  type: 'object';
+  type: 'object' | 'OBJECT';
   properties: Record<string, ToolParameterSchema>;
   required?: string[];
 }
@@ -45,6 +49,7 @@ export interface ToolDefinition<TParams = any, TResult = any> {
   allowedRoles: UserRole[];
   parameters: ToolParameters;
   handler: (params: TParams, context: SecurityContext) => Promise<ToolExecutionResult<TResult>>;
+  execute?: (params: TParams, context: SecurityContext) => Promise<any>;
 }
 
 export interface RegisteredToolMap {
