@@ -3,6 +3,7 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "allowImportingTsExtensions": false,
-    "rewriteRelativeImportExtensions": false
+    "rewriteRelativeImportExtensions": false,
+    "types": ["jest", "node"]
   }
 }

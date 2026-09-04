@@ -6,7 +6,8 @@ import * as dotenv from 'dotenv';
 import helmet from 'helmet'; 
 import rateLimit from 'express-rate-limit'; 
 import apiRoutes from './routes/index'; 
-import prisma from './lib/prisma'; // ✅ Now using the singleton client
+import whatsappRoutes from './routes/whatsappRoutes';
+import prisma from './lib/prisma'; //  Now using the singleton client
 
 dotenv.config();
 
@@ -56,7 +57,7 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ LIGHTWEIGHT HEALTH CHECK: Point your Cron-job URL here
+//  LIGHTWEIGHT HEALTH CHECK: Point your Cron-job URL here
 app.get('/api/health', (req, res) => {
   res.status(200).send('Server is alive and legendary!');
 });
@@ -74,6 +75,7 @@ io.on("connection", (socket) => {
     console.log(`[SOCKET] User connected: ${socket.id}`);
 });
 
+app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api', apiRoutes); 
 
 app.use((err: any, req: any, res: any, next: any) => {
