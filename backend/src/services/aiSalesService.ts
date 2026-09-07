@@ -1,3 +1,7 @@
+// ==========================================
+// FILE: backend/src/services/aiSalesService.ts
+// ==========================================
+
 import prisma from '../lib/prisma';
 import { NegotiationEngine } from './negotiationEngine';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -18,7 +22,7 @@ export interface BuyerPerception {
   sentiment: 'positive' | 'neutral' | 'negative' | 'frustrated' | 'eager';
   urgency: 'low' | 'medium' | 'high';
   priceSensitivity: 'low' | 'medium' | 'high';
-  detectedIntent: 'inquiry' | 'bargain' | 'specs_check' | 'human_request' | 'bulk_inquiry' | 'closing';
+  detectedIntent: 'inquiry' | 'bargain' | 'specs_check' | 'human_request' | 'bulk_inquiry' | 'closing' | 'general';
   estimatedMaxBudget?: number;
 }
 
@@ -35,7 +39,7 @@ export class AiSalesService {
    * Perception Module: Analyzes raw message text to evaluate buyer sentiment, urgency, intent, and price sensitivity.
    */
   private static perceiveBuyerIntent(message: string, offeredPrice?: number, listPrice: number = 0): BuyerPerception {
-    const msgLower = message.toLowerCase();
+    const msgLower = message.toLowerCase().trim();
     
     // Default perception baseline
     let sentiment: BuyerPerception['sentiment'] = 'neutral';
@@ -43,31 +47,40 @@ export class AiSalesService {
     let priceSensitivity: BuyerPerception['priceSensitivity'] = 'medium';
     let detectedIntent: BuyerPerception['detectedIntent'] = 'inquiry';
 
-    // Sentiment and Urgency Perception
-    if (msgLower.includes('urgent') || msgLower.includes('today') || msgLower.includes('now') || msgLower.includes('asap') || msgLower.includes('fast')) {
-      urgency = 'high';
-      sentiment = 'eager';
-    }
-    if (msgLower.includes('expensive') || msgLower.includes('too high') || msgLower.includes('ridiculous') || msgLower.includes('scam')) {
-      sentiment = 'frustrated';
-      priceSensitivity = 'high';
-    } else if (msgLower.includes('love') || msgLower.includes('great') || msgLower.includes('perfect') || msgLower.includes('interested')) {
-      sentiment = 'positive';
-    }
+    // General query, greeting, math, or coding detection
+    const isGeneralQuery = 
+      /^(2\s*\+\s*2|hello\b|hi\b|hey\b|code\b|python\b|javascript\b|typescript\b|function\b|how\s+are\s+you|what\s+is\s+your\s+name|help|write\s+a\s+code)/i.test(msgLower) ||
+      /\b(solve|write code|debug|explain code|javascript|python|react|typescript|algorithm|math|2\s*\+\s*2)\b/i.test(msgLower);
 
-    // Intent Perception
-    if (offeredPrice || msgLower.includes('bottom') || msgLower.includes('negotiable') || msgLower.includes('last price') || msgLower.includes('discount') || msgLower.includes('cheaper') || msgLower.includes('how much')) {
-      detectedIntent = 'bargain';
-      priceSensitivity = 'high';
-    } else if (msgLower.includes('spec') || msgLower.includes('condition') || msgLower.includes('warranty') || msgLower.includes('authentic') || msgLower.includes('original')) {
-      detectedIntent = 'specs_check';
-    } else if (msgLower.includes('wholesale') || msgLower.includes('bulk') || msgLower.includes('quantity') || msgLower.includes('many')) {
-      detectedIntent = 'bulk_inquiry';
-    } else if (msgLower.includes('human') || msgLower.includes('agent') || msgLower.includes('call') || msgLower.includes('seller') || msgLower.includes('person')) {
-      detectedIntent = 'human_request';
-    } else if (msgLower.includes('buy') || msgLower.includes('take it') || msgLower.includes('deal') || msgLower.includes('account') || msgLower.includes('pay')) {
-      detectedIntent = 'closing';
-      urgency = 'high';
+    if (isGeneralQuery && !offeredPrice) {
+      detectedIntent = 'general';
+    } else {
+      // Sentiment and Urgency Perception
+      if (msgLower.includes('urgent') || msgLower.includes('today') || msgLower.includes('now') || msgLower.includes('asap') || msgLower.includes('fast')) {
+        urgency = 'high';
+        sentiment = 'eager';
+      }
+      if (msgLower.includes('expensive') || msgLower.includes('too high') || msgLower.includes('ridiculous') || msgLower.includes('scam')) {
+        sentiment = 'frustrated';
+        priceSensitivity = 'high';
+      } else if (msgLower.includes('love') || msgLower.includes('great') || msgLower.includes('perfect') || msgLower.includes('interested')) {
+        sentiment = 'positive';
+      }
+
+      // Intent Perception
+      if (offeredPrice || msgLower.includes('bottom') || msgLower.includes('negotiable') || msgLower.includes('last price') || msgLower.includes('discount') || msgLower.includes('cheaper') || msgLower.includes('how much')) {
+        detectedIntent = 'bargain';
+        priceSensitivity = 'high';
+      } else if (msgLower.includes('spec') || msgLower.includes('condition') || msgLower.includes('warranty') || msgLower.includes('authentic') || msgLower.includes('original')) {
+        detectedIntent = 'specs_check';
+      } else if (msgLower.includes('wholesale') || msgLower.includes('bulk') || msgLower.includes('quantity') || msgLower.includes('many')) {
+        detectedIntent = 'bulk_inquiry';
+      } else if (msgLower.includes('human') || msgLower.includes('agent') || msgLower.includes('call') || msgLower.includes('seller') || msgLower.includes('person')) {
+        detectedIntent = 'human_request';
+      } else if (msgLower.includes('buy') || msgLower.includes('take it') || msgLower.includes('deal') || msgLower.includes('account') || msgLower.includes('pay')) {
+        detectedIntent = 'closing';
+        urgency = 'high';
+      }
     }
 
     let estimatedMaxBudget: number | undefined;
@@ -306,7 +319,35 @@ export class AiSalesService {
     } 
     // SCENARIO 2: Text question / natural language negotiation / general AI session
     else {
-      if (item && !isAutoNegotiateActive && !customSystemPrompt) {
+      if (perception.detectedIntent === 'general' && isGeneralSession) {
+        // Pure general assistant mode (e.g. 2+2, hello, coding questions)
+        try {
+          if (!process.env.GEMINI_API_KEY) {
+            throw new Error('GEMINI_API_KEY environment variable is not defined.');
+          }
+
+          const model = genAI.getGenerativeModel({ 
+            model: 'gemini-2.5-flash',
+            systemInstruction: `You are TRADARA AI, an advanced, highly intelligent AI assistant built for TRADARA.
+You are fully equipped to answer general knowledge questions, solve math problems (such as evaluating 2+2 or equations), write and debug code, explain complex technical concepts, and assist users directly with absolute precision.
+Provide precise, direct, and insightful answers without forcing e-commerce or price negotiation prompts.`
+          });
+
+          const recentHistoryText = (session.messages || [])
+            .slice(-6)
+            .map((m: any) => `${m.sender.toUpperCase()}: ${m.message}`)
+            .join('\n');
+
+          const response = await model.generateContent([
+            `Recent Conversation:\n${recentHistoryText}\n\nUser says: "${message}"`
+          ]);
+
+          aiReply = response.response.text();
+        } catch (error) {
+          console.error("Gemini General AI Error:", error);
+          aiReply = `Hello! I am TRADARA AI. You asked: "${message}". I am fully equipped to answer general questions, solve math, write code, or help you explore our marketplace catalog!`;
+        }
+      } else if (item && !isAutoNegotiateActive && !customSystemPrompt) {
         // If no AI config exists or auto-negotiation is disabled and no override system prompt, state price is firm
         aiReply = `The price for ${item.stockName || item.title || 'this item'} is fixed at ${item.currency || '₦'}${item.price.toLocaleString()}. Feel free to ask if you have any questions about its specifications!`;
       } else {
@@ -316,7 +357,7 @@ export class AiSalesService {
             throw new Error('GEMINI_API_KEY environment variable is not defined.');
           }
 
-          const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+          const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
           // Assemble Short-Term Memory Context from historic message chain
           const recentHistoryText = (session.messages || [])

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-// ✅ LOGIC: Import the shared instance from your config
+// LOGIC: Import the shared instance from your config
 import prisma from "../config/db"; 
 
 const router = Router();

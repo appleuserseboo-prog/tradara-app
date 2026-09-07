@@ -8,19 +8,19 @@ const prisma = new PrismaClient();
 
 export interface SaveOfferRoundInput {
   sessionId?: string;
-  itemId: string;
+  itemId?: string | null;
   buyerSession: string;
-  buyerOffer: number;
+  buyerOffer?: number;
   buyerMessage: string;
-  aiAction: 'ACCEPT' | 'REJECT' | 'COUNTER';
-  aiCounterAmount: number;
-  aiReasoning: string;
+  aiAction?: 'ACCEPT' | 'REJECT' | 'COUNTER' | 'GENERAL';
+  aiCounterAmount?: number;
+  aiReasoning?: string;
   aiBuyerMessage: string;
   currentRound: number;
 }
 
 /**
- * Persists an incoming offer and the resulting AI decision using your existing
+ * Persists an incoming offer and the resulting AI decision or general AI answer using your existing
  * AiNegotiationSession and AiChatMessage models in MongoDB via Prisma.
  */
 export async function saveNegotiationRound(input: SaveOfferRoundInput) {
@@ -30,12 +30,15 @@ export async function saveNegotiationRound(input: SaveOfferRoundInput) {
     buyerSession,
     buyerOffer,
     buyerMessage,
-    aiAction,
+    aiAction = 'GENERAL',
     aiCounterAmount,
     aiReasoning,
     aiBuyerMessage,
     currentRound,
   } = input;
+
+  const isGeneral = aiAction === 'GENERAL' || !itemId || itemId === 'general-ai-session';
+  const dbItemId = isGeneral ? null : itemId;
 
   const sessionStatus =
     aiAction === 'ACCEPT'
@@ -50,44 +53,44 @@ export async function saveNegotiationRound(input: SaveOfferRoundInput) {
     session = await prisma.aiNegotiationSession.upsert({
       where: { id: sessionId },
       create: {
-        itemId,
+        itemId: dbItemId,
         buyerSession,
-        currentOffer: aiCounterAmount,
+        currentOffer: aiCounterAmount || null,
         status: sessionStatus,
         roundCount: currentRound,
-        agreedPrice: aiAction === 'ACCEPT' ? aiCounterAmount : null,
+        agreedPrice: aiAction === 'ACCEPT' && aiCounterAmount ? aiCounterAmount : null,
       },
       update: {
-        currentOffer: aiCounterAmount,
+        currentOffer: aiCounterAmount !== undefined ? aiCounterAmount : undefined,
         status: sessionStatus,
         roundCount: currentRound,
-        agreedPrice: aiAction === 'ACCEPT' ? aiCounterAmount : undefined,
+        agreedPrice: aiAction === 'ACCEPT' && aiCounterAmount ? aiCounterAmount : undefined,
       },
     });
   } else {
     session = await prisma.aiNegotiationSession.findFirst({
-      where: { buyerSession, itemId, status: 'active' },
+      where: { buyerSession, itemId: dbItemId, status: 'active' },
     });
 
     if (session) {
       session = await prisma.aiNegotiationSession.update({
         where: { id: session.id },
         data: {
-          currentOffer: aiCounterAmount,
+          currentOffer: aiCounterAmount !== undefined ? aiCounterAmount : undefined,
           status: sessionStatus,
           roundCount: currentRound,
-          agreedPrice: aiAction === 'ACCEPT' ? aiCounterAmount : undefined,
+          agreedPrice: aiAction === 'ACCEPT' && aiCounterAmount ? aiCounterAmount : undefined,
         },
       });
     } else {
       session = await prisma.aiNegotiationSession.create({
         data: {
-          itemId,
+          itemId: dbItemId,
           buyerSession,
-          currentOffer: aiCounterAmount,
+          currentOffer: aiCounterAmount || null,
           status: sessionStatus,
           roundCount: currentRound,
-          agreedPrice: aiAction === 'ACCEPT' ? aiCounterAmount : null,
+          agreedPrice: aiAction === 'ACCEPT' && aiCounterAmount ? aiCounterAmount : null,
         },
       });
     }
@@ -99,16 +102,20 @@ export async function saveNegotiationRound(input: SaveOfferRoundInput) {
       sessionId: session.id,
       sender: 'buyer',
       message: buyerMessage,
-      offerMade: buyerOffer,
+      offerMade: buyerOffer || null,
     },
   });
+
+  const formattedAiMessage = aiReasoning 
+    ? `${aiBuyerMessage}\n[Reasoning: ${aiReasoning}]`
+    : aiBuyerMessage;
 
   const aiMsgRecord = await prisma.aiChatMessage.create({
     data: {
       sessionId: session.id,
       sender: 'ai',
-      message: `${aiBuyerMessage}\n[Reasoning: ${aiReasoning}]`,
-      offerMade: aiCounterAmount,
+      message: formattedAiMessage,
+      offerMade: aiCounterAmount || null,
     },
   });
 

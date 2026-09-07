@@ -70,7 +70,28 @@ export const handleOrchestratedChat = async (req: AuthenticatedRequest, res: Res
         quickOffers: result.quickOffers,
       };
     } else {
-      throw new Error('AgentOrchestrator does not implement a recognized handler method.');
+      // Fallback direct execution if AgentOrchestrator methods aren't matched properly,
+      // leveraging Google GenAI SDK to ensure direct queries like "2+2", "hello", or code questions get real answers.
+      try {
+        const { GoogleGenAI } = await import('@google/genai');
+        const ai = new GoogleGenAI({ apiKey });
+        const chat = ai.chats.create({
+          model: 'gemini-2.5-flash',
+          history: conversationHistory.map((h: any) => ({
+            role: h.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: h.content || h.message || '' }]
+          }))
+        });
+        const chatResult = await chat.sendMessage({ message });
+        orchestrationResult = {
+          message: chatResult.text,
+          toolExecutions: [],
+          iterationsUsed: 1,
+        };
+      } catch (genAiErr) {
+        console.error('Direct Gemini SDK Fallback Execution Error:', genAiErr);
+        throw new Error('AgentOrchestrator does not implement a recognized handler method and fallback failed.');
+      }
     }
 
     res.status(200).json({

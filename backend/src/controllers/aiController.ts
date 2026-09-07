@@ -1,3 +1,7 @@
+// ==========================================
+// FILE: backend/src/controllers/aiController.ts
+// ==========================================
+
 import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { AiSalesService } from '../services/aiSalesService';
@@ -82,6 +86,9 @@ Capabilities: Answer general knowledge, tech, business, complex inquiries, math,
 Goal: Provide precise, direct, and insightful answers. If the user expresses intent to buy, negotiate, or ask for the price of a specific product without an active item selected, kindly answer their general question and intelligently guide them to click on a specific product card on TRADARA for dedicated product-level price negotiation and quality checks.`;
     }
 
+    const cleanMessage = typeof message === 'string' ? message.trim() : '';
+    const isGeneralQuery = /^(2\s*\+\s*2|hello|hi|hey|code|python|javascript|typescript|function)\b/i.test(cleanMessage);
+
     const result = await AiSalesService.processMessage({
       itemId,
       buyerSession,
@@ -89,7 +96,7 @@ Goal: Provide precise, direct, and insightful answers. If the user expresses int
       message,
       offeredPrice: offeredPrice ? Number(offeredPrice) : undefined,
       quantity: quantity ? Number(quantity) : 1,
-      systemPrompt,
+      systemPrompt: isGeneralQuery ? `${systemPrompt}\n[DIRECT ANSWER DIRECTIVE]: Answer the user's general, math, or coding question directly and helpfully without forcing e-commerce or price negotiation prompts.` : systemPrompt,
     });
 
     return res.status(200).json({ success: true, data: result });

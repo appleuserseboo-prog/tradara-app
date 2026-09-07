@@ -1,5 +1,5 @@
 import React from 'react';
-import type { PendingToolApproval } from '../types/ai';
+import type { PendingToolApproval } from '../../types/ai';
 
 interface ToolExecutionModalProps {
   isOpen: boolean;

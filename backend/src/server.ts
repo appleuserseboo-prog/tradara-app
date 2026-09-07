@@ -10,7 +10,7 @@ import whatsappRoutes from './routes/whatsappRoutes';
 import { whatsappRouter } from './routes/whatsappWebhook';
 import overrideRouter from './routes/negotiateOverride';
 import dashboardSessionsRouter from './routes/dashboardSessions';
-import prisma from './lib/prisma'; //  Now using the singleton client
+import prisma from './lib/prisma'; //   Now using the singleton client
 
 dotenv.config();
 
@@ -60,7 +60,16 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-//  LIGHTWEIGHT HEALTH CHECK: Point your Cron-job URL here
+// ROOT ROUTE: Friendly message to appear when visiting the root backend URL
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'success',
+    message: '🚀 Tradara Backend API is running successfully!',
+    timestamp: new Date().toISOString()
+  });
+});
+
+//   LIGHTWEIGHT HEALTH CHECK: Point your Cron-job URL here
 app.get('/api/health', (req, res) => {
   res.status(200).send('Server is alive and legendary!');
 });

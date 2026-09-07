@@ -6,7 +6,7 @@ import {
   forgotPassword, 
   resetPassword, 
   getMe 
-} from '../controller/auth';
+} from '../controllers/auth';
 import { authMiddleware } from '../middleware/authMiddleware';
 
 const router = Router();

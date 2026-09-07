@@ -1,3 +1,7 @@
+// ==========================================
+// FILE: backend/src/services/productService.ts
+// ==========================================
+
 export interface SearchProductParams {
   query: string;
   category?: string;

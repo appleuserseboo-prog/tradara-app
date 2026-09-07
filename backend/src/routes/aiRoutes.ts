@@ -4,7 +4,7 @@ import {
   getProductAiConfig,
   handleChatMessage,
   getNegotiationHistory,
-} from '../controller/aiController';
+} from '../controllers/aiController';
 import { authMiddleware } from '../middleware/authMiddleware';
 import { AiSalesService } from '../services/aiSalesService';
 

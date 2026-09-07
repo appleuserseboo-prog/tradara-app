@@ -6,7 +6,7 @@ import { Router, Request, Response } from 'express';
 import {
   computeNegotiationDecision,
   NegotiationContext,
-} from '../controller/geminiNegotiationController';
+} from '../controllers/geminiNegotiationController';
 import { sendWhatsAppTextMessage } from '../services/whatsappService';
 import { saveNegotiationRound } from '../services/negotiationPersistenceService';
 

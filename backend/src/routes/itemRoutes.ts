@@ -1,6 +1,6 @@
 import { Router } from 'express';
 // ✅ ADDED: Included 'updateItem' in the import list
-import { getMyDashboardItems, createItem, deleteItem, updateItem } from '../controller/item';
+import { getMyDashboardItems, createItem, deleteItem, updateItem } from '../controllers/item';
 import { authMiddleware } from '../middleware/authMiddleware';
 import multer from 'multer';
 import prisma from '../config/db'; 

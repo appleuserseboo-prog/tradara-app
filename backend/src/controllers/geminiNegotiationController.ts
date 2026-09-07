@@ -1,5 +1,5 @@
 // ==========================================
-// FILE: src/controllers/geminiNegotiationController.ts
+// FILE: backend/src/controllers/geminiNegotiationController.ts
 // ==========================================
 
 import { GoogleGenAI, Type, Schema } from '@google/genai';
@@ -61,9 +61,48 @@ const responseSchema: Schema = {
 export async function computeNegotiationDecision(
   context: NegotiationContext
 ): Promise<NegotiationDecision> {
+  const lastMsg = context.conversationHistory?.[context.conversationHistory.length - 1]?.message || '';
+  const isGeneralQuery = /^(2\s*\+\s*2|hello|hi|hey|code|python|javascript|typescript|function|how\s+are\s+you|what\s+is\s+your\s+name|help|write\s+a\s+code)\b/i.test(lastMsg.trim());
+
+  // If it's a general query, use ai.models.generateContent instead of getGenerativeModel
+  if (isGeneralQuery) {
+    try {
+      const systemInstruction = `You are TRADARA AI, an advanced, highly intelligent AI assistant built for TRADARA.
+You are fully equipped to answer general knowledge questions, solve math problems (such as evaluating 2+2 or equations), write and debug code, explain complex technical concepts, and assist users directly with absolute precision.
+Provide precise, direct, and insightful answers without forcing e-commerce or price negotiation prompts.`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: `User says: "${lastMsg}"`,
+        config: {
+          systemInstruction,
+          temperature: 0.3,
+        },
+      });
+
+      const textReply = response.text || `Hello! How can I help you today?`;
+
+      return {
+        action: 'COUNTER',
+        counterAmount: context.buyerOffer,
+        reasoning: 'General assistant query answered directly.',
+        buyerMessage: textReply,
+      };
+    } catch (error: any) {
+      console.error('[Gemini General Assistant Error]:', error);
+      return {
+        action: 'COUNTER',
+        counterAmount: context.buyerOffer,
+        reasoning: 'Fallback response for general query.',
+        buyerMessage: `Hello! I am TRADARA AI. You asked: "${lastMsg}". How can I help you today?`,
+      };
+    }
+  }
+
   const systemInstruction = `
-You are an autonomous e-commerce negotiation AI agent acting on behalf of the seller.
+You are TRADARA AI, an autonomous e-commerce negotiation AI agent acting on behalf of the seller.
 Your objective is to maximize profit margin while successfully closing deals within the seller's guardrails.
+You are fully equipped to handle general inquiries, coding problems, mathematics, and expert negotiations across any field or domain.
 
 CRITICAL GUARDRAILS:
 1. NEVER offer a price below the floor price ($${context.floorPrice}).
@@ -122,7 +161,6 @@ Evaluate this offer and decide whether to COUNTER, ACCEPT, or REJECT. Provide an
   } catch (error: any) {
     console.error('[Gemini AI Controller Error Details]:', error);
 
-    // Re-throw or log detailed API errors so they aren't masked silently by fallback
     const defaultCounter = Math.max(
       context.floorPrice,
       Math.round(context.listPrice - (context.listPrice - context.buyerOffer) * 0.5)
