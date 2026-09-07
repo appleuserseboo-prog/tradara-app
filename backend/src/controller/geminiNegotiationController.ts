@@ -4,8 +4,8 @@
 
 import { GoogleGenAI, Type, Schema } from '@google/genai';
 
-// Initialize SDK using the current standard constructor syntax
-const ai = new GoogleGenAI();
+// Initialize SDK using the explicit API key from environment variables to prevent initialization failure
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export interface NegotiationContext {
   sessionId: string;
@@ -90,7 +90,7 @@ Negotiation Context:
 - Current Round: ${context.currentRound} of ${context.maxRounds}
 - History: ${JSON.stringify(context.conversationHistory || [])}
 
-Evaluate this offer and decide whether to COUNTER, ACCEPT, or REJECT. Provide a exact numeric counter amount and customer message.
+Evaluate this offer and decide whether to COUNTER, ACCEPT, or REJECT. Provide an exact numeric counter amount and customer message.
 `;
 
   try {
@@ -119,10 +119,10 @@ Evaluate this offer and decide whether to COUNTER, ACCEPT, or REJECT. Provide a 
     }
 
     return decision;
-  } catch (error) {
-    console.error('[Gemini AI Controller Error]:', error);
+  } catch (error: any) {
+    console.error('[Gemini AI Controller Error Details]:', error);
 
-    // Fallback programmatic calculation if API fails
+    // Re-throw or log detailed API errors so they aren't masked silently by fallback
     const defaultCounter = Math.max(
       context.floorPrice,
       Math.round(context.listPrice - (context.listPrice - context.buyerOffer) * 0.5)
@@ -131,7 +131,7 @@ Evaluate this offer and decide whether to COUNTER, ACCEPT, or REJECT. Provide a 
     return {
       action: context.buyerOffer >= context.floorPrice ? 'ACCEPT' : 'COUNTER',
       counterAmount: defaultCounter,
-      reasoning: 'Fallback negotiation rule applied due to controller exception.',
+      reasoning: `Fallback negotiation rule applied due to controller exception: ${error.message || 'Unknown error'}`,
       buyerMessage: `Thank you for your offer of $${context.buyerOffer}. I can meet you at $${defaultCounter}.`,
     };
   }
