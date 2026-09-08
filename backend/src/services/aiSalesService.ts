@@ -4,9 +4,9 @@
 
 import prisma from '../lib/prisma';
 import { NegotiationEngine } from './negotiationEngine';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.API_KEY });
 
 export interface ProcessChatMessageInput {
   itemId?: string;
@@ -197,6 +197,32 @@ export class AiSalesService {
     }
   }
 
+  /**
+   * Helper function to try generating content with fallback models starting with the updated model first
+   */
+  private static async generateWithModelFallback(params: {
+    contents: any;
+    config?: any;
+  }) {
+    const modelsToTry = ['gemini-3.6-flash', 'gemini-2.5-flash'];
+    let lastError: any;
+
+    for (const modelName of modelsToTry) {
+      try {
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: params.contents,
+          config: params.config,
+        });
+        return response;
+      } catch (err: any) {
+        console.warn(`[Gemini Model Warning] Model ${modelName} failed:`, err.message || err);
+        lastError = err;
+      }
+    }
+    throw lastError;
+  }
+
   public static async processMessage(input: ProcessChatMessageInput) {
     const { itemId, buyerSession, buyerId, message, offeredPrice, quantity = 1, systemPrompt: customSystemPrompt } = input;
 
@@ -322,27 +348,24 @@ export class AiSalesService {
       if (perception.detectedIntent === 'general' && isGeneralSession) {
         // Pure general assistant mode (e.g. 2+2, hello, coding questions)
         try {
-          if (!process.env.GEMINI_API_KEY) {
-            throw new Error('GEMINI_API_KEY environment variable is not defined.');
-          }
-
-          const model = genAI.getGenerativeModel({ 
-            model: 'gemini-2.5-flash',
-            systemInstruction: `You are TRADARA AI, an advanced, highly intelligent AI assistant built for TRADARA.
+          const systemInstruction = `You are TRADARA AI, an advanced, highly intelligent AI assistant built for TRADARA.
 You are fully equipped to answer general knowledge questions, solve math problems (such as evaluating 2+2 or equations), write and debug code, explain complex technical concepts, and assist users directly with absolute precision.
-Provide precise, direct, and insightful answers without forcing e-commerce or price negotiation prompts.`
-          });
+Provide precise, direct, and insightful answers without forcing e-commerce or price negotiation prompts.`;
 
           const recentHistoryText = (session.messages || [])
             .slice(-6)
             .map((m: any) => `${m.sender.toUpperCase()}: ${m.message}`)
             .join('\n');
 
-          const response = await model.generateContent([
-            `Recent Conversation:\n${recentHistoryText}\n\nUser says: "${message}"`
-          ]);
+          const response = await this.generateWithModelFallback({
+            contents: `Recent Conversation:\n${recentHistoryText}\n\nUser says: "${message}"`,
+            config: {
+              systemInstruction,
+              temperature: 0.3,
+            },
+          });
 
-          aiReply = response.response.text();
+          aiReply = response.text || `Hello! How can I help you today?`;
         } catch (error) {
           console.error("Gemini General AI Error:", error);
           aiReply = `Hello! I am TRADARA AI. You asked: "${message}". I am fully equipped to answer general questions, solve math, write code, or help you explore our marketplace catalog!`;
@@ -353,23 +376,17 @@ Provide precise, direct, and insightful answers without forcing e-commerce or pr
       } else {
         // Use Gemini with passed or dynamic prompt
         try {
-          if (!process.env.GEMINI_API_KEY) {
-            throw new Error('GEMINI_API_KEY environment variable is not defined.');
-          }
-
-          const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
           // Assemble Short-Term Memory Context from historic message chain
           const recentHistoryText = (session.messages || [])
             .slice(-6)
             .map((m: any) => `${m.sender.toUpperCase()}: ${m.message}`)
             .join('\n');
 
-          let systemPrompt = customSystemPrompt;
+          let systemInstruction = customSystemPrompt;
 
-          if (!systemPrompt) {
+          if (!systemInstruction) {
             if (item) {
-              systemPrompt = `
+              systemInstruction = `
 You are TRADARA's AI Sales Assistant representing the seller for "${item.stockName || item.title || 'this item'}".
 Your tone: ${item.aiConfig?.aiTone || 'Friendly, professional, and persuasive'}.
 
@@ -393,9 +410,6 @@ Your tone: ${item.aiConfig?.aiTone || 'Friendly, professional, and persuasive'}.
 - Historical Item Conversion Rate: ${intelligence.itemHistoricalConversions} successful deals closed.
 - Buyer Past Platform Success: ${intelligence.buyerSuccessfulDeals} of ${intelligence.buyerPastNegotiationCount} chats converted.
 
---- SHORT-TERM SESSION HISTORY ---
-${recentHistoryText || 'No prior conversation.'}
-
 --- NEGOTIATION RULES ---
 1. Answer buyer questions accurately based on the specs, condition, and FAQs above.
 2. NEVER offer a price lower than ${item.currency || '₦'}${item.aiConfig?.minimumPrice || item.price} per unit.
@@ -409,18 +423,21 @@ ${recentHistoryText || 'No prior conversation.'}
 7. Keep responses concise (2-4 sentences max) suitable for live chat.
 `;
             } else {
-              systemPrompt = `You are TRADARA AI, an advanced, highly intelligent AI general assistant built for TRADARA (acting like ChatGPT or Claude). 
+              systemInstruction = `You are TRADARA AI, an advanced, highly intelligent AI general assistant built for TRADARA (acting like ChatGPT or Claude). 
 Your capabilities: You can answer any general knowledge question, explain technical concepts, write or debug code, solve mathematics and logic problems, and assist with general inquiries with absolute precision and depth.
 Important Guideline: Answer all general inquiries, questions on tech, coding, mathematics, science, history, and business insights completely and intelligently. Do not restrict general questions. If the user inquires about buying, pricing, or negotiating a specific product while in general assistant mode, answer them and politely guide them to select a product card on TRADARA to start live price negotiation.`;
             }
           }
 
-          const response = await model.generateContent([
-            systemPrompt,
-            `Recent Conversation:\n${recentHistoryText}\n\nUser says: "${message}"`
-          ]);
+          const response = await this.generateWithModelFallback({
+            contents: `Recent Conversation:\n${recentHistoryText}\n\nUser says: "${message}"`,
+            config: {
+              systemInstruction,
+              temperature: 0.3,
+            },
+          });
 
-          aiReply = response.response.text();
+          aiReply = response.text || '';
         } catch (error) {
           console.error("Gemini AI Processing Error:", error);
           

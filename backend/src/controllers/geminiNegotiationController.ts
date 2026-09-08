@@ -4,8 +4,8 @@
 
 import { GoogleGenAI, Type, Schema } from '@google/genai';
 
-// Initialize SDK using the explicit API key from environment variables to prevent initialization failure
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// Initialize SDK using the explicit API key from environment variables (supporting both naming conventions) to prevent initialization failure
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.API_KEY });
 
 export interface NegotiationContext {
   sessionId: string;
@@ -56,23 +56,46 @@ const responseSchema: Schema = {
 };
 
 /**
- * Computes an autonomous negotiation counter-offer using Gemini 2.5 Flash
+ * Computes an autonomous negotiation counter-offer using Gemini 3.6 Flash with fallback support for 2.5 Flash
  */
 export async function computeNegotiationDecision(
   context: NegotiationContext
 ): Promise<NegotiationDecision> {
   const lastMsg = context.conversationHistory?.[context.conversationHistory.length - 1]?.message || '';
-  const isGeneralQuery = /^(2\s*\+\s*2|hello|hi|hey|code|python|javascript|typescript|function|how\s+are\s+you|what\s+is\s+your\s+name|help|write\s+a\s+code)\b/i.test(lastMsg.trim());
+  const isGeneralQuery = /^(2\s*\+\s*2|hello|hi|hey|code|python|javascript|typescript|function|how\s+are\s+you|what\s+is\s+your\s+name|help|write\s+a\s+code|can\s+you\s+do\s+it)\b/i.test(lastMsg.trim());
 
-  // If it's a general query, use ai.models.generateContent instead of getGenerativeModel
+  // Helper function to try generating content with fallback models starting with the updated model first
+  async function generateWithModelFallback(params: {
+    contents: any;
+    config?: any;
+  }) {
+    const modelsToTry = ['gemini-3.6-flash', 'gemini-2.5-flash'];
+    let lastError: any;
+
+    for (const modelName of modelsToTry) {
+      try {
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: params.contents,
+          config: params.config,
+        });
+        return response;
+      } catch (err: any) {
+        console.warn(`[Gemini Model Warning] Model ${modelName} failed:`, err.message || err);
+        lastError = err;
+      }
+    }
+    throw lastError;
+  }
+
+  // If it's a general query, use generateWithModelFallback
   if (isGeneralQuery) {
     try {
       const systemInstruction = `You are TRADARA AI, an advanced, highly intelligent AI assistant built for TRADARA.
 You are fully equipped to answer general knowledge questions, solve math problems (such as evaluating 2+2 or equations), write and debug code, explain complex technical concepts, and assist users directly with absolute precision.
 Provide precise, direct, and insightful answers without forcing e-commerce or price negotiation prompts.`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+      const response = await generateWithModelFallback({
         contents: `User says: "${lastMsg}"`,
         config: {
           systemInstruction,
@@ -89,13 +112,12 @@ Provide precise, direct, and insightful answers without forcing e-commerce or pr
         buyerMessage: textReply,
       };
     } catch (error: any) {
-      console.error('[Gemini General Assistant Error]:', error);
-      return {
-        action: 'COUNTER',
-        counterAmount: context.buyerOffer,
-        reasoning: 'Fallback response for general query.',
-        buyerMessage: `Hello! I am TRADARA AI. You asked: "${lastMsg}". How can I help you today?`,
-      };
+      console.error('[TRADARA AI CRITICAL FAILURE]:', {
+        message: error.message,
+        status: error.status,
+        stack: error.stack,
+      });
+      throw new Error(`AI Provider Failed: ${error.message || 'Unknown configuration error'}`);
     }
   }
 
@@ -133,8 +155,7 @@ Evaluate this offer and decide whether to COUNTER, ACCEPT, or REJECT. Provide an
 `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+    const response = await generateWithModelFallback({
       contents: prompt,
       config: {
         systemInstruction,
@@ -159,18 +180,11 @@ Evaluate this offer and decide whether to COUNTER, ACCEPT, or REJECT. Provide an
 
     return decision;
   } catch (error: any) {
-    console.error('[Gemini AI Controller Error Details]:', error);
-
-    const defaultCounter = Math.max(
-      context.floorPrice,
-      Math.round(context.listPrice - (context.listPrice - context.buyerOffer) * 0.5)
-    );
-
-    return {
-      action: context.buyerOffer >= context.floorPrice ? 'ACCEPT' : 'COUNTER',
-      counterAmount: defaultCounter,
-      reasoning: `Fallback negotiation rule applied due to controller exception: ${error.message || 'Unknown error'}`,
-      buyerMessage: `Thank you for your offer of $${context.buyerOffer}. I can meet you at $${defaultCounter}.`,
-    };
+    console.error('[TRADARA AI CRITICAL FAILURE]:', {
+      message: error.message,
+      status: error.status,
+      stack: error.stack,
+    });
+    throw new Error(`AI Provider Failed: ${error.message || 'Unknown configuration error'}`);
   }
 }
