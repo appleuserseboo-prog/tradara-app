@@ -36,6 +36,27 @@ export interface MarketplaceIntelligence {
 
 export class AiSalesService {
   /**
+   * Helper function to sanitize AI responses and remove distracting markdown artifacts (e.g. stray asterisks)
+   */
+  private static sanitizeMarkdownOutput(text: string): string {
+    if (!text) return '';
+    
+    let sanitized = text;
+    
+    // Remove isolated stray asterisks or broken markdown bullets
+    sanitized = sanitized.replace(/^\s*\*\s*$/gm, '');
+    
+    // Clean up excessive markdown wrapping if it looks artifact-heavy, but preserve structural formatting
+    // Ensure no dangling bold markers without closing partners
+    const unclosedBoldRegex = /\*\*(?!.*?\*\*)/g;
+    if (unclosedBoldRegex.test(sanitized)) {
+      sanitized = sanitized.replace(/\*\*/g, '');
+    }
+
+    return sanitized.trim();
+  }
+
+  /**
    * Perception Module: Analyzes raw message text to evaluate buyer sentiment, urgency, intent, and price sensitivity.
    */
   private static perceiveBuyerIntent(message: string, offeredPrice?: number, listPrice: number = 0): BuyerPerception {
@@ -306,7 +327,7 @@ export class AiSalesService {
     }
 
     const currentRound = session.roundCount + 1;
-    let aiReply = '';
+    let rawAiReply = '';
     let dealStatus = session.status;
     let agreedPrice = session.agreedPrice;
 
@@ -317,7 +338,7 @@ export class AiSalesService {
     if (offeredPrice && item) {
       if (!isAutoNegotiateActive) {
         // No AI config or auto-negotiate disabled -> Cannot auto-accept discounts
-        aiReply = `Thank you for your offer of ${item.currency || '₦'}${offeredPrice.toLocaleString()}. This item has a fixed price of ${item.currency || '₦'}${item.price.toLocaleString()}. If you would like to negotiate further, please request to connect with a human agent.`;
+        rawAiReply = `Thank you for your offer of ${item.currency || '₦'}${offeredPrice.toLocaleString()}. This item has a fixed price of ${item.currency || '₦'}${item.price.toLocaleString()}. If you would like to negotiate further, please request to connect with a human agent.`;
       } else {
         const result = NegotiationEngine.processOffer(offeredPrice, currentRound, {
           minimumPrice: item.aiConfig.minimumPrice || item.price,
@@ -335,11 +356,11 @@ export class AiSalesService {
 
         if (result.accepted) {
           agreedPrice = offeredPrice;
-          aiReply = `Great news! I can accept your offer of ${item.currency || '₦'}${offeredPrice.toLocaleString()} per unit for ${quantity} unit(s). Would you like to proceed with this purchase?`;
+          rawAiReply = `Great news! I can accept your offer of ${item.currency || '₦'}${offeredPrice.toLocaleString()} per unit for ${quantity} unit(s). Would you like to proceed with this purchase?`;
         } else if (result.counterOffer) {
-          aiReply = `Thank you for your offer. The best price we can offer right now is ${item.currency || '₦'}${result.counterOffer.toLocaleString()} per unit. Let me know if that works for you!`;
+          rawAiReply = `Thank you for your offer. The best price we can offer right now is ${item.currency || '₦'}${result.counterOffer.toLocaleString()} per unit. Let me know if that works for you!`;
         } else {
-          aiReply = `Thank you for your interest. ${result.message}`;
+          rawAiReply = `Thank you for your interest. ${result.message}`;
         }
       }
     } 
@@ -350,7 +371,8 @@ export class AiSalesService {
         try {
           const systemInstruction = `You are TRADARA AI, an advanced, highly intelligent AI assistant built for TRADARA.
 You are fully equipped to answer general knowledge questions, solve math problems (such as evaluating 2+2 or equations), write and debug code, explain complex technical concepts, and assist users directly with absolute precision.
-Provide precise, direct, and insightful answers without forcing e-commerce or price negotiation prompts.`;
+Provide precise, direct, and insightful answers without forcing e-commerce or price negotiation prompts.
+Ensure your text output is clean, professional, and free of distracting markdown artifacts.`;
 
           const recentHistoryText = (session.messages || [])
             .slice(-6)
@@ -365,14 +387,14 @@ Provide precise, direct, and insightful answers without forcing e-commerce or pr
             },
           });
 
-          aiReply = response.text || `Hello! How can I help you today?`;
+          rawAiReply = response.text || `Hello! How can I help you today?`;
         } catch (error) {
           console.error("Gemini General AI Error:", error);
-          aiReply = `Hello! I am TRADARA AI. You asked: "${message}". I am fully equipped to answer general questions, solve math, write code, or help you explore our marketplace catalog!`;
+          rawAiReply = `Hello! I am TRADARA AI. You asked: "${message}". I am fully equipped to answer general questions, solve math, write code, or help you explore our marketplace catalog!`;
         }
       } else if (item && !isAutoNegotiateActive && !customSystemPrompt) {
         // If no AI config exists or auto-negotiation is disabled and no override system prompt, state price is firm
-        aiReply = `The price for ${item.stockName || item.title || 'this item'} is fixed at ${item.currency || '₦'}${item.price.toLocaleString()}. Feel free to ask if you have any questions about its specifications!`;
+        rawAiReply = `The price for ${item.stockName || item.title || 'this item'} is fixed at ${item.currency || '₦'}${item.price.toLocaleString()}. Feel free to ask if you have any questions about its specifications!`;
       } else {
         // Use Gemini with passed or dynamic prompt
         try {
@@ -421,11 +443,13 @@ Your tone: ${item.aiConfig?.aiTone || 'Friendly, professional, and persuasive'}.
 5. OFF-TOPIC RULE: If the buyer asks questions unrelated to the item or trading on TRADARA, politely state that you are the product sales assistant for this item, and redirect them back to discuss the item's features or price.
 6. Adapt your response style based on buyer sentiment: If sentiment is frustrated or urgency is high, keep it ultra-direct.
 7. Keep responses concise (2-4 sentences max) suitable for live chat.
+8. PRESENTATION: Keep output crisp, clean, professional, and free of distracting markdown artifacts or stray asterisks.
 `;
             } else {
               systemInstruction = `You are TRADARA AI, an advanced, highly intelligent AI general assistant built for TRADARA (acting like ChatGPT or Claude). 
 Your capabilities: You can answer any general knowledge question, explain technical concepts, write or debug code, solve mathematics and logic problems, and assist with general inquiries with absolute precision and depth.
-Important Guideline: Answer all general inquiries, questions on tech, coding, mathematics, science, history, and business insights completely and intelligently. Do not restrict general questions. If the user inquires about buying, pricing, or negotiating a specific product while in general assistant mode, answer them and politely guide them to select a product card on TRADARA to start live price negotiation.`;
+Important Guideline: Answer all general inquiries, questions on tech, coding, mathematics, science, history, and business insights completely and intelligently. Do not restrict general questions. If the user inquires about buying, pricing, or negotiating a specific product while in general assistant mode, answer them and politely guide them to select a product card on TRADARA to start live price negotiation.
+Ensure clean, distraction-free markdown generation logic without stray formatting artifacts.`;
             }
           }
 
@@ -437,7 +461,7 @@ Important Guideline: Answer all general inquiries, questions on tech, coding, ma
             },
           });
 
-          aiReply = response.text || '';
+          rawAiReply = response.text || '';
         } catch (error) {
           console.error("Gemini AI Processing Error:", error);
           
@@ -448,26 +472,29 @@ Important Guideline: Answer all general inquiries, questions on tech, coding, ma
             const msgLower = message.toLowerCase();
 
             if (msgLower.includes('how much') || msgLower.includes('price')) {
-              aiReply = `The listed price for ${item.stockName || item.title || 'this item'} is ${item.currency || '₦'}${item.price.toLocaleString()}.`;
+              rawAiReply = `The listed price for ${item.stockName || item.title || 'this item'} is ${item.currency || '₦'}${item.price.toLocaleString()}.`;
             } else if (msgLower.includes('bottom') || msgLower.includes('negotiable') || msgLower.includes('less') || msgLower.includes('last price') || msgLower.includes('discount')) {
               if (targetP < item.price) {
-                aiReply = `The listed price is ${item.currency || '₦'}${item.price.toLocaleString()}, but I can offer it to you for ${item.currency || '₦'}${targetP.toLocaleString()} for a quick deal!`;
+                rawAiReply = `The listed price is ${item.currency || '₦'}${item.price.toLocaleString()}, but I can offer it to you for ${item.currency || '₦'}${targetP.toLocaleString()} for a quick deal!`;
               } else if (minP < item.price) {
-                aiReply = `The listed price is ${item.currency || '₦'}${item.price.toLocaleString()}, but we can consider offers down to ${item.currency || '₦'}${minP.toLocaleString()}.`;
+                rawAiReply = `The listed price is ${item.currency || '₦'}${item.price.toLocaleString()}, but we can consider offers down to ${item.currency || '₦'}${minP.toLocaleString()}.`;
               } else {
-                aiReply = `The price for ${item.stockName || item.title || 'this item'} is firm at ${item.currency || '₦'}${item.price.toLocaleString()}.`;
+                rawAiReply = `The price for ${item.stockName || item.title || 'this item'} is firm at ${item.currency || '₦'}${item.price.toLocaleString()}.`;
               }
             } else if (msgLower.includes('hi') || msgLower.includes('hello') || msgLower.includes('hey')) {
-              aiReply = `Hello! How can I help you today regarding ${item.stockName || item.title || 'this product'}?`;
+              rawAiReply = `Hello! How can I help you today regarding ${item.stockName || item.title || 'this product'}?`;
             } else {
-              aiReply = `I am TRADARA's sales assistant for ${item.stockName || item.title || 'this item'} (Listed: ${item.currency || '₦'}${item.price.toLocaleString()}). How can I assist you with its details or pricing?`;
+              rawAiReply = `I am TRADARA's sales assistant for ${item.stockName || item.title || 'this item'} (Listed: ${item.currency || '₦'}${item.price.toLocaleString()}). How can I assist you with its details or pricing?`;
             }
           } else {
-            aiReply = `Hello! I am TRADARA AI. You asked: "${message}". I am fully equipped to answer general questions, solve math, write code, or help you explore our marketplace catalog!`;
+            rawAiReply = `Hello! I am TRADARA AI. You asked: "${message}". I am fully equipped to answer general questions, solve math, write code, or help you explore our marketplace catalog!`;
           }
         }
       }
     }
+
+    // Apply strict markdown sanitization to ensure crisp, distraction-free output
+    const aiReply = this.sanitizeMarkdownOutput(rawAiReply);
 
     // Update Session State
     await (prisma as any).aiNegotiationSession.update({
