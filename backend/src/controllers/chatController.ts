@@ -3,13 +3,16 @@
 // ==========================================
 
 import { Request, Response } from 'express';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { buildTradaraSystemInstruction, ProductContext } from '../ai/prompts/tradaraPromptBuilder';
 import { NegotiationEngine, NegotiationRules } from '../services/negotiationEngine';
 import { AgentOrchestrator } from '../ai/orchestrator/AgentOrchestrator';
+import { PrismaClient } from '@prisma/client';
 
-// Initialize the Gemini SDK client
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const prisma = new PrismaClient();
+
+// Initialize the modern @google/genai SDK client
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 // Singleton instance of the Agent Orchestrator
 const orchestrator = new AgentOrchestrator();
@@ -25,15 +28,17 @@ export interface ChatRequestBody {
   product?: ProductContext;
   negotiationRules?: Partial<NegotiationRules>;
   currentRound?: number;
+  sessionId?: string;
 }
 
 /**
  * Controller handling intelligent multi-turn interaction with TRADARA AI,
- * incorporating direct generative model fallback to guarantee real answers for general questions, math, and code.
+ * incorporating blazing-fast streaming responses, location awareness, database session persistence,
+ * and direct generative model fallback.
  */
 export const handleAiChat = async (req: Request<{}, {}, ChatRequestBody>, res: Response): Promise<void> => {
   try {
-    const { message, history = [], product, negotiationRules, currentRound = 1 } = req.body;
+    const { message, history = [], product, negotiationRules, currentRound = 1, sessionId } = req.body;
 
     if (!message || typeof message !== 'string' || message.trim() === '') {
       res.status(400).json({
@@ -44,8 +49,62 @@ export const handleAiChat = async (req: Request<{}, {}, ChatRequestBody>, res: R
     }
 
     const cleanUserMessage = message.trim();
+    const userId = (req as any).user?.id || null;
 
-    // 1. Try orchestrator request first
+    // 1. Resolve or create database chat session if user is authenticated
+    let activeChatSessionId: string | undefined = sessionId;
+    if (userId) {
+      if (activeChatSessionId) {
+        // Use standard delegate name or fallback gracefully
+        const existingSession = await (prisma as any).chatSession?.findUnique({
+          where: { id: activeChatSessionId },
+        }).catch(() => null) || await (prisma as any).aiChatSession?.findUnique({
+          where: { id: activeChatSessionId },
+        }).catch(() => null);
+
+        if (!existingSession) {
+          activeChatSessionId = undefined;
+        }
+      }
+      if (!activeChatSessionId) {
+        const titleSnippet = cleanUserMessage.length > 30 ? cleanUserMessage.substring(0, 30) + '...' : cleanUserMessage;
+        
+        const sessionDelegate = (prisma as any).chatSession || (prisma as any).aiChatSession;
+        if (sessionDelegate) {
+          const newDbSession = await sessionDelegate.create({
+            data: {
+              title: titleSnippet,
+              userId,
+              itemId: product?.id || null,
+            },
+          });
+          activeChatSessionId = newDbSession.id;
+        }
+      }
+
+      // Save user message to database
+      const messageDelegate = (prisma as any).chatMessage || (prisma as any).aiChatMessage;
+      if (messageDelegate && activeChatSessionId) {
+        await messageDelegate.create({
+          data: {
+            sessionId: activeChatSessionId,
+            role: 'user',
+            content: cleanUserMessage,
+          },
+        }).catch(async () => {
+          // Fallback if schema uses 'sender' instead of 'role'
+          await messageDelegate.create({
+            data: {
+              sessionId: activeChatSessionId,
+              sender: 'user',
+              content: cleanUserMessage,
+            },
+          });
+        });
+      }
+    }
+
+    // 2. Try orchestrator request first
     let orchestratorResult: any = null;
     try {
       if (typeof orchestrator.processRequest === 'function') {
@@ -62,7 +121,7 @@ export const handleAiChat = async (req: Request<{}, {}, ChatRequestBody>, res: R
       console.warn('[ChatController] Orchestrator execution skipped, proceeding with robust direct generative flow:', orchestratorError);
     }
 
-    // 2. Extract explicit numeric offers (e.g., "50k", "₦50,000", "50000")
+    // 3. Extract explicit numeric offers (e.g., "50k", "₦50,000", "50000")
     let extractedOffer: number | null = null;
     const kMatch = cleanUserMessage.match(/(?:₦|N|NGN|\$)?\s?(\d+(?:\.\d+)?)\s?k\b/i);
     if (kMatch) {
@@ -81,7 +140,7 @@ export const handleAiChat = async (req: Request<{}, {}, ChatRequestBody>, res: R
     let processedProduct: ProductContext | undefined = undefined;
     let negotiationResult: any = null;
 
-    // 3. Evaluate pricing & negotiation bounds if product is active
+    // 4. Evaluate pricing & negotiation bounds if product is active
     if (product && product.listPrice) {
       const listPrice = Number(product.listPrice);
       const minPrice = product.minPrice ? Number(product.minPrice) : Math.round(listPrice * 0.85);
@@ -116,7 +175,7 @@ export const handleAiChat = async (req: Request<{}, {}, ChatRequestBody>, res: R
       }
     }
 
-    // 4. Build comprehensive system instructions allowing both commerce and general queries (math, code, greetings)
+    // 5. Build comprehensive system instructions allowing both commerce and general queries (math, code, greetings)
     const baseInstruction = buildTradaraSystemInstruction({
       product: processedProduct,
       userName: (req as any).user?.name || undefined,
@@ -127,7 +186,7 @@ You are TRADARA AI, an advanced, highly intelligent AI assistant built for TRADA
 You are fully equipped to answer general knowledge questions, solve math problems (such as evaluating 2+2 or equations), write and debug code, explain complex technical concepts, and assist with e-commerce negotiations.
 Provide precise, direct, and insightful answers. If the user asks a general question, answer it thoroughly and helpfully.`;
 
-    // 5. Sanitize history
+    // 6. Sanitize history
     const formattedHistory = history
       .filter((item) => {
         const text = item.parts?.[0]?.text || '';
@@ -142,25 +201,35 @@ Provide precise, direct, and insightful answers. If the user asks a general ques
         parts: item.parts && item.parts.length > 0 ? item.parts : [{ text: '' }],
       }));
 
-    // 6. Initialize Generative Model using gemini-2.5-flash with robust settings
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
-      systemInstruction,
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 1000,
-      },
-    });
-
+    // 7. Initialize Generative Chat Session using modern @google/genai SDK with gemini-2.5-flash and streaming optimization
     let promptToSend = cleanUserMessage;
     if (processedProduct && negotiationResult && negotiationResult.counterOffer && !/\b(2\s*\+\s*2|hello|hi|hey|code|python|javascript|typescript|function)\b/i.test(cleanUserMessage)) {
       promptToSend = `[COMMERCE ENGINE DIRECTIVE]: User requested price/discount ("${cleanUserMessage}"). Listed price: ₦${processedProduct.listPrice.toLocaleString()}. Calculated target counter-offer: ₦${negotiationResult.counterOffer.toLocaleString()} (Floor Limit: ₦${processedProduct.minPrice.toLocaleString()}). Offer them ₦${negotiationResult.counterOffer.toLocaleString()} as our best deal. Do not quote the list price without giving this counter-offer.`;
     }
 
-    const chatSession = model.startChat({ history: formattedHistory });
-    const result = await chatSession.sendMessage(promptToSend);
-    const response = await result.response;
-    let aiResponseText = response.text()?.trim() || '';
+    const chatSession = ai.chats.create({
+      model: 'gemini-2.5-flash',
+      config: {
+        systemInstruction,
+        temperature: 0.7,
+        maxOutputTokens: 1000,
+      },
+      history: formattedHistory as any,
+    });
+
+    // Enable Server-Sent Events (SSE) streaming for blazing-fast perceived response time
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    const streamResult = await chatSession.sendMessageStream({ message: promptToSend });
+    let aiResponseText = '';
+
+    for await (const chunk of streamResult) {
+      const chunkText = chunk.text || '';
+      aiResponseText += chunkText;
+      res.write(`data: ${JSON.stringify({ chunk: chunkText })}\n\n`);
+    }
 
     // Fallback if model response is empty
     if (!aiResponseText && orchestratorResult?.responseText) {
@@ -169,7 +238,7 @@ Provide precise, direct, and insightful answers. If the user asks a general ques
       aiResponseText = "Hello! I am TRADARA AI. How can I help you with our marketplace or answer your questions today?";
     }
 
-    // 7. Hard-Guard Fallback: Enforce counter-offer in response text if LLM misses the number on price requests
+    // 8. Hard-Guard Fallback: Enforce counter-offer in response text if LLM misses the number on price requests
     if (
       processedProduct &&
       negotiationResult?.counterOffer &&
@@ -177,6 +246,28 @@ Provide precise, direct, and insightful answers. If the user asks a general ques
       !aiResponseText.includes(negotiationResult.counterOffer.toLocaleString())
     ) {
       aiResponseText = `The listed price for ${processedProduct.name} is ₦${processedProduct.listPrice.toLocaleString()}, but I can offer it to you for ₦${negotiationResult.counterOffer.toLocaleString()} as our best price right now.`;
+    }
+
+    // Save model response to database if authenticated
+    if (userId && activeChatSessionId) {
+      const messageDelegate = (prisma as any).chatMessage || (prisma as any).aiChatMessage;
+      if (messageDelegate) {
+        await messageDelegate.create({
+          data: {
+            sessionId: activeChatSessionId,
+            role: 'model',
+            content: aiResponseText,
+          },
+        }).catch(async () => {
+          await messageDelegate.create({
+            data: {
+              sessionId: activeChatSessionId,
+              sender: 'model',
+              content: aiResponseText,
+            },
+          });
+        });
+      }
     }
 
     // Quick discount chips for frontend UI
@@ -191,23 +282,31 @@ Provide precise, direct, and insightful answers. If the user asks a general ques
       ];
     }
 
-    res.status(200).json({
-      success: true,
+    // Send completion event with metadata
+    res.write(`data: ${JSON.stringify({
+      done: true,
       data: {
         response: aiResponseText,
+        sessionId: activeChatSessionId,
         quickOffers,
         activeProduct: processedProduct || null,
         negotiationEngineOutput: negotiationResult || undefined,
         toolExecuted: orchestratorResult?.toolExecuted || false,
-      },
-    });
+      }
+    })}\n\n`);
+    res.end();
+
   } catch (error: any) {
     console.error('[ChatController Error]:', error);
-
-    res.status(500).json({
-      success: false,
-      error: 'An error occurred while processing your request.',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
-    });
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: 'An error occurred while processing your request.',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      });
+    } else {
+      res.write(`data: ${JSON.stringify({ error: 'Stream error encountered.' })}\n\n`);
+      res.end();
+    }
   }
 };

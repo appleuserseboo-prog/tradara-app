@@ -20,7 +20,7 @@ export const register = async (req: Request, res: Response) => {
       data: { email, name, password: hashedPassword }
     });
 
-    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '20m' });
     res.status(201).json({ token, user: { id: user.id, name: user.name, email: user.email } });
   } catch (error) {
     res.status(500).json({ message: "Registration Failure" });
@@ -37,7 +37,7 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '1d' });
+    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '20m' });
     res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
   } catch (error) {
     res.status(500).json({ error: "Login Failure" });
@@ -55,22 +55,22 @@ export const forgotPassword = async (req: Request, res: Response) => {
     const resetToken = jwt.sign({ id: user.id, purpose: 'password_reset' }, JWT_SECRET, { expiresIn: '1h' });
     
     // Create the frontend link
-// Replace localhost with your Vercel URL
-const resetLink = `https://tradara-app.vercel.app/reset-password?token=${resetToken}`;
+    // Replace localhost with your Vercel URL
+    const resetLink = `https://tradara-app.vercel.app/reset-password?token=${resetToken}`;
     // Define the HTML content for the professional look
     // Inside your forgotPassword controller in auth.ts
-const emailHtml = `
-  <div style="font-family: sans-serif; padding: 20px;">
-    <h2>Reset Password</h2>
-    <p>Click the button below to reset your password.</p>
-    <a href="${resetLink}" style="background: #2563eb; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block;">
-      Reset Password
-    </a>
-  </div>
-`;
+    const emailHtml = `
+      <div style="font-family: sans-serif; padding: 20px;">
+        <h2>Reset Password</h2>
+        <p>Click the button below to reset your password.</p>
+        <a href="${resetLink}" style="background: #2563eb; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block;">
+          Reset Password
+        </a>
+      </div>
+    `;
 
-// FIX: Remove the fourth argument (true)
-await sendAuthEmail(email, "Reset Your Legendary Engine Password", emailHtml);
+    // FIX: Remove the fourth argument (true)
+    await sendAuthEmail(email, "Reset Your Legendary Engine Password", emailHtml);
     res.status(200).json({ message: "Reset link sent to your email!" });
   } catch (error) {
     console.error("Email processing error:", error);

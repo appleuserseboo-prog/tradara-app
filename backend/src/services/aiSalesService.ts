@@ -16,6 +16,7 @@ export interface ProcessChatMessageInput {
   offeredPrice?: number;
   quantity?: number;
   systemPrompt?: string;
+  sessionId?: string; // Optional direct session thread routing parameter
 }
 
 export interface BuyerPerception {
@@ -92,7 +93,7 @@ export class AiSalesService {
       if (offeredPrice || msgLower.includes('bottom') || msgLower.includes('negotiable') || msgLower.includes('last price') || msgLower.includes('discount') || msgLower.includes('cheaper') || msgLower.includes('how much')) {
         detectedIntent = 'bargain';
         priceSensitivity = 'high';
-      } else if (msgLower.includes('spec') || msgLower.includes('condition') || msgLower.includes('warranty') || msgLower.includes('authentic') || msgLower.includes('original')) {
+      } else if (msgLower.includes('spec') || msgLower.includes('condition') || msgLower.includes('warranty') || msgLower.includes('authentic') || msgLower.includes('original') || msgLower.includes('location') || msgLower.includes('city') || msgLower.includes('area')) {
         detectedIntent = 'specs_check';
       } else if (msgLower.includes('wholesale') || msgLower.includes('bulk') || msgLower.includes('quantity') || msgLower.includes('many')) {
         detectedIntent = 'bulk_inquiry';
@@ -225,7 +226,7 @@ export class AiSalesService {
     contents: any;
     config?: any;
   }) {
-    const modelsToTry = ['gemini-3.6-flash', 'gemini-2.5-flash'];
+    const modelsToTry = ['gemini-2.5-flash', 'gemini-3.6-flash'];
     let lastError: any;
 
     for (const modelName of modelsToTry) {
@@ -245,7 +246,7 @@ export class AiSalesService {
   }
 
   public static async processMessage(input: ProcessChatMessageInput) {
-    const { itemId, buyerSession, buyerId, message, offeredPrice, quantity = 1, systemPrompt: customSystemPrompt } = input;
+    const { itemId, buyerSession, buyerId, message, offeredPrice, quantity = 1, systemPrompt: customSystemPrompt, sessionId: explicitSessionId } = input;
 
     // 1. Fetch Item & AI Configuration (Optional for general AI chat sessions)
     const isGeneralSession = !itemId || itemId === 'general-ai-session';
@@ -262,21 +263,42 @@ export class AiSalesService {
       }
     }
 
-    // 2. Find or Create Negotiation Session
-    // Use null for relational itemId on general-ai-session to avoid Foreign Key violations
+    // 2. Find or Create Negotiation Session supporting server-side login sync & explicit thread routing
     const dbItemId = isGeneralSession ? null : itemId;
 
-    let session = await (prisma as any).aiNegotiationSession.findFirst({
-      where: { buyerSession, itemId: dbItemId },
-      include: { messages: { orderBy: { createdAt: 'asc' } } },
-    });
+    let session: any = null;
+    if (explicitSessionId) {
+      session = await (prisma as any).aiNegotiationSession.findUnique({
+        where: { id: explicitSessionId },
+        include: { messages: { orderBy: { createdAt: 'asc' } } },
+      });
+    }
 
     if (!session) {
+      if (buyerId) {
+        session = await (prisma as any).aiNegotiationSession.findFirst({
+          where: { buyerId, itemId: dbItemId, status: 'active' },
+          orderBy: { updatedAt: 'desc' },
+          include: { messages: { orderBy: { createdAt: 'asc' } } },
+        });
+      }
+      if (!session) {
+        session = await (prisma as any).aiNegotiationSession.findFirst({
+          where: { buyerSession, itemId: dbItemId },
+          include: { messages: { orderBy: { createdAt: 'asc' } } },
+        });
+      }
+    }
+
+    if (!session) {
+      // Auto-generate initial thread title from the first query string
+      const title = message.length > 30 ? message.substring(0, 27) + '...' : message;
       session = await (prisma as any).aiNegotiationSession.create({
         data: {
           itemId: dbItemId,
           buyerSession,
-          buyerId,
+          buyerId: buyerId || null,
+          title,
           status: 'active',
         },
         include: { messages: true },
@@ -393,8 +415,10 @@ Ensure your text output is clean, professional, and free of distracting markdown
           rawAiReply = `Hello! I am TRADARA AI. You asked: "${message}". I am fully equipped to answer general questions, solve math, write code, or help you explore our marketplace catalog!`;
         }
       } else if (item && !isAutoNegotiateActive && !customSystemPrompt) {
-        // If no AI config exists or auto-negotiation is disabled and no override system prompt, state price is firm
-        rawAiReply = `The price for ${item.stockName || item.title || 'this item'} is fixed at ${item.currency || '₦'}${item.price.toLocaleString()}. Feel free to ask if you have any questions about its specifications!`;
+        // If no AI config exists or auto-negotiation is disabled and no override system prompt, state price is firm with location
+        const city = item.locationCity || item.city || item.seller?.city || 'Nigeria';
+        const area = item.locationArea || item.area || item.seller?.area || '';
+        rawAiReply = `The price for ${item.stockName || item.title || 'this item'} is fixed at ${item.currency || '₦'}${item.price.toLocaleString()}. Location: ${city}${area ? ', ' + area : ''}. Feel free to ask if you have any questions about its specifications!`;
       } else {
         // Use Gemini with passed or dynamic prompt
         try {
@@ -408,9 +432,19 @@ Ensure your text output is clean, professional, and free of distracting markdown
 
           if (!systemInstruction) {
             if (item) {
+              // Explicitly injecting City, Area, and Seller Pickup Details into Product AI
+              const city = item.locationCity || item.city || item.seller?.city || 'Not specified';
+              const area = item.locationArea || item.area || item.seller?.area || 'Not specified';
+              const address = item.locationAddress || item.pickupAddress || item.seller?.address || 'Available via platform chat';
+
               systemInstruction = `
 You are TRADARA's AI Sales Assistant representing the seller for "${item.stockName || item.title || 'this item'}".
 Your tone: ${item.aiConfig?.aiTone || 'Friendly, professional, and persuasive'}.
+
+--- ITEM LOCATION & PICKUP INFO ---
+- City: ${city}
+- Area / Neighborhood: ${area}
+- Exact Pickup Address / Details: ${address}
 
 --- STRICT SELLER CONSTRAINTS & KNOWLEDGE BASE ---
 - Listed Unit Price: ${item.currency || '₦'}${item.price}
@@ -423,7 +457,6 @@ Your tone: ${item.aiConfig?.aiTone || 'Friendly, professional, and persuasive'}.
 - Specifications: ${item.aiConfig?.specifications || item.description || 'N/A'}
 - Frequently Asked Questions (FAQ): ${item.aiConfig?.faqKnowledgeBase || 'N/A'}
 - Warranty: ${item.aiConfig?.warrantyPeriod || 'N/A'}
-- Pickup / Contact info: ${item.aiConfig?.pickupAddress || 'Available via platform chat'}
 
 --- REAL-TIME PERCEPTION & MARKETPLACE INTELLIGENCE ---
 - Perceived Buyer Intent: ${perception.detectedIntent}
@@ -432,18 +465,19 @@ Your tone: ${item.aiConfig?.aiTone || 'Friendly, professional, and persuasive'}.
 - Historical Item Conversion Rate: ${intelligence.itemHistoricalConversions} successful deals closed.
 - Buyer Past Platform Success: ${intelligence.buyerSuccessfulDeals} of ${intelligence.buyerPastNegotiationCount} chats converted.
 
---- NEGOTIATION RULES ---
+--- NEGOTIATION & LOCATION RULES ---
 1. Answer buyer questions accurately based on the specs, condition, and FAQs above.
-2. NEVER offer a price lower than ${item.currency || '₦'}${item.aiConfig?.minimumPrice || item.price} per unit.
-3. BULK QUANTITY RULE: If the buyer asks for a wholesale or bulk discount, inform them that bulk pricing requires a minimum purchase of ${item.aiConfig?.bulkMinQuantity || 'seller-defined'} units. Do NOT grant bulk discounts for orders below this minimum threshold.
-4. If the buyer asks for "last price", "bottom line", or if price is negotiable for single units:
+2. If asked about pickup, city, location, or area, explicitly state the City (${city}) and Area (${area}).
+3. NEVER offer a price lower than ${item.currency || '₦'}${item.aiConfig?.minimumPrice || item.price} per unit.
+4. BULK QUANTITY RULE: If the buyer asks for a wholesale or bulk discount, inform them that bulk pricing requires a minimum purchase of ${item.aiConfig?.bulkMinQuantity || 'seller-defined'} units. Do NOT grant bulk discounts for orders below this minimum threshold.
+5. If the buyer asks for "last price", "bottom line", or if price is negotiable for single units:
    - Acknowledge that discounts are possible.
    - Do NOT give away the absolute floor (${item.currency || '₦'}${item.aiConfig?.walkawayPrice || item.aiConfig?.minimumPrice || item.price}) immediately.
    - Proactively suggest a reasonable initial price near ${item.currency || '₦'}${item.aiConfig?.targetPrice || item.price}.
-5. OFF-TOPIC RULE: If the buyer asks questions unrelated to the item or trading on TRADARA, politely state that you are the product sales assistant for this item, and redirect them back to discuss the item's features or price.
-6. Adapt your response style based on buyer sentiment: If sentiment is frustrated or urgency is high, keep it ultra-direct.
-7. Keep responses concise (2-4 sentences max) suitable for live chat.
-8. PRESENTATION: Keep output crisp, clean, professional, and free of distracting markdown artifacts or stray asterisks.
+6. OFF-TOPIC RULE: If the buyer asks questions unrelated to the item or trading on TRADARA, politely state that you are the product sales assistant for this item, and redirect them back to discuss the item's features or price.
+7. Adapt your response style based on buyer sentiment: If sentiment is frustrated or urgency is high, keep it ultra-direct.
+8. Keep responses concise (2-4 sentences max) suitable for live chat.
+9. PRESENTATION: Keep output crisp, clean, professional, and free of distracting markdown artifacts or stray asterisks.
 `;
             } else {
               systemInstruction = `You are TRADARA AI, an advanced, highly intelligent AI general assistant built for TRADARA (acting like ChatGPT or Claude). 
@@ -470,9 +504,12 @@ Ensure clean, distraction-free markdown generation logic without stray formattin
             const minP = item.aiConfig?.minimumPrice || item.price;
             const targetP = item.aiConfig?.targetPrice || item.price;
             const msgLower = message.toLowerCase();
+            const city = item.locationCity || item.city || item.seller?.city || 'Nigeria';
 
             if (msgLower.includes('how much') || msgLower.includes('price')) {
               rawAiReply = `The listed price for ${item.stockName || item.title || 'this item'} is ${item.currency || '₦'}${item.price.toLocaleString()}.`;
+            } else if (msgLower.includes('location') || msgLower.includes('city') || msgLower.includes('area') || msgLower.includes('where')) {
+              rawAiReply = `This item is located in ${city}.`;
             } else if (msgLower.includes('bottom') || msgLower.includes('negotiable') || msgLower.includes('less') || msgLower.includes('last price') || msgLower.includes('discount')) {
               if (targetP < item.price) {
                 rawAiReply = `The listed price is ${item.currency || '₦'}${item.price.toLocaleString()}, but I can offer it to you for ${item.currency || '₦'}${targetP.toLocaleString()} for a quick deal!`;
@@ -484,7 +521,7 @@ Ensure clean, distraction-free markdown generation logic without stray formattin
             } else if (msgLower.includes('hi') || msgLower.includes('hello') || msgLower.includes('hey')) {
               rawAiReply = `Hello! How can I help you today regarding ${item.stockName || item.title || 'this product'}?`;
             } else {
-              rawAiReply = `I am TRADARA's sales assistant for ${item.stockName || item.title || 'this item'} (Listed: ${item.currency || '₦'}${item.price.toLocaleString()}). How can I assist you with its details or pricing?`;
+              rawAiReply = `I am TRADARA's sales assistant for ${item.stockName || item.title || 'this item'} (Listed: ${item.currency || '₦'}${item.price.toLocaleString()}, Location: ${city}). How can I assist you with its details or pricing?`;
             }
           } else {
             rawAiReply = `Hello! I am TRADARA AI. You asked: "${message}". I am fully equipped to answer general questions, solve math, write code, or help you explore our marketplace catalog!`;
@@ -504,6 +541,7 @@ Ensure clean, distraction-free markdown generation logic without stray formattin
         currentOffer: offeredPrice || session.currentOffer,
         agreedPrice: agreedPrice || session.agreedPrice,
         status: dealStatus,
+        updatedAt: new Date(),
       },
     });
 

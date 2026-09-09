@@ -50,6 +50,7 @@ model User {
   UserAiMemory         UserAiMemory[]
   UserMemory           UserMemory[]
   AiAuditLog           AiAuditLog[]
+  chatSessions         ChatSession[]          @relation("UserChatSessions")
 }
 
 model Item {
@@ -78,6 +79,7 @@ model Item {
 
   aiConfig              ProductAiConfig?
   aiNegotiationSessions AiNegotiationSession[]
+  chatSessions          ChatSession[]
 
   @@index([stockName])
   @@index([category])
@@ -142,23 +144,23 @@ model ProductAiConfig {
 }
 
 model AiNegotiationSession {
-  id           String          @id @default(auto()) @map("_id") @db.ObjectId
-  itemId       String?         @db.ObjectId
-  item         Item?           @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  itemId       String?       @db.ObjectId
+  item         Item?         @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
-  buyerId      String?         @db.ObjectId
-  buyer        User?           @relation(fields: [buyerId], references: [id])
+  buyerId      String?       @db.ObjectId
+  buyer        User?         @relation(fields: [buyerId], references: [id])
   buyerSession String
 
   currentOffer Float?
   agreedPrice  Float?
-  status       String          @default("active")
-  roundCount   Int             @default(0)
+  status       String        @default("active")
+  roundCount   Int           @default(0)
 
   messages     AiChatMessage[]
 
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@index([itemId])
   @@index([buyerSession])
@@ -174,6 +176,32 @@ model AiChatMessage {
   offerMade Float?
 
   createdAt DateTime             @default(now())
+}
+
+model ChatSession {
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  title        String        @default("New Chat")
+  userId       String?       @db.ObjectId
+  user         User?         @relation("UserChatSessions", fields: [userId], references: [id], onDelete: Cascade)
+  itemId       String?       @db.ObjectId
+  item         Item?         @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  messages     ChatMessage[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([itemId])
+}
+
+model ChatMessage {
+  id        String      @id @default(auto()) @map("_id") @db.ObjectId
+  sessionId String      @db.ObjectId
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      String      // 'user' | 'model'
+  content   String
+  createdAt DateTime    @default(now())
+
+  @@index([sessionId])
 }
 
 model UserMemory {

@@ -10,6 +10,8 @@ export interface ProductContext {
   currency?: string;
   category?: string;
   description?: string;
+  city?: string;
+  area?: string;
 }
 
 export interface PromptBuilderOptions {
@@ -18,7 +20,7 @@ export interface PromptBuilderOptions {
 }
 
 /**
- * Dynamic System Instruction Builder for TRADARA AI.
+ * Dynamic System Instruction Builder for TRADARA AI, incorporating seller location context.
  */
 export function buildTradaraSystemInstruction(options?: PromptBuilderOptions): string {
   const currency = options?.product?.currency || '₦';
@@ -35,8 +37,12 @@ CORE DIRECTIVES:
 4. NO INVENTED PRODUCTS: Do not invent store inventory or phantom prices unless a product context is explicitly provided.`;
   }
 
-  // SCENARIO 2: Active Product Negotiation & Commerce Mode
-  const { name, listPrice, minPrice, category, description } = options.product;
+  // SCENARIO 2: Active Product Negotiation & Commerce Mode with Location Context
+  const { name, listPrice, minPrice, category, description, city, area } = options.product;
+  
+  const locationString = (city || area) 
+    ? `Item Location: ${area ? `${area}, ` : ''}${city || ''}.` 
+    : 'Item Location: Nigeria';
 
   return `You are TRADARA AI, operating as the sharp, articulate digital commerce representative for "${name}". You are chatting with ${userName}.
 
@@ -45,6 +51,7 @@ PRODUCT PROFILE:
 - Listed Price: ${currency}${listPrice.toLocaleString()}
 - Strict Minimum Floor Price: ${currency}${minPrice.toLocaleString()} (ABSOLUTE BOTTOM - NEVER GO BELOW THIS)
 - Category: ${category || 'Marketplace Item'}
+- ${locationString}
 - Overview: ${description || 'No additional specifications provided.'}
 
 BEHAVIORAL RULES:
@@ -53,9 +60,10 @@ BEHAVIORAL RULES:
    - If the user asks a general question (e.g., "what is machine learning", "explain physics", "write javascript code"), ANSWER THEIR QUESTION THOROUGHLY FIRST in 2-3 concise sentences. Then add a seamless 1-sentence segue back to ${name}.
    - NEVER parrot back the user's question. NEVER use template intros like "Thank you for asking about...".
 
-2. DYNAMIC & NATURAL NEGOTIATION:
+2. DYNAMIC & NATURAL NEGOTIATION & LOCATION AWARENESS:
    - Listed price is ${currency}${listPrice.toLocaleString()}.
    - You have authority to grant reasonable discounts down to a hard bottom of ${currency}${minPrice.toLocaleString()}.
+   - When asked about pickup, meeting spots, or delivery, explicitly reference that the item is located in ${area ? `${area}, ` : ''}${city || 'our regional hub'}.
    - When asked for "last price", "discount", or "least price", grant a small progress step (e.g., 5% to 10% off). Never drop straight down to absurd amounts like ${currency}6,000 unless list price is actually in that range.
    - Hold firm on value while keeping the dialogue warm, professional, and deal-focused.
 

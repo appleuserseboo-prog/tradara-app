@@ -1,4 +1,4 @@
-import React, { useState, createContext } from "react";
+import React, { useState, createContext, useEffect, useCallback } from "react";
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { 
   PlusCircle, LayoutDashboard, 
@@ -19,6 +19,8 @@ import { TradaraAiDrawer } from './components/chat/TradaraAiDrawer';
 import type { ItemContext } from './components/chat/TradaraAiDrawer';
 
 export const AppContext = createContext<any>(null);
+
+const INACTIVITY_LIMIT = 20 * 60 * 1000; // 20 minutes inactivity limit
 
 const AppContent: React.FC = () => {
   const [token, setToken] = useState<string | null>(localStorage.getItem("token"));
@@ -48,13 +50,44 @@ const AppContent: React.FC = () => {
     navigate("/"); 
   };
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     setToken(null);
     setUser(null);
-    navigate("/login"); 
-  };
+    navigate("/login?expired=true", { replace: true });
+  }, [navigate]);
+
+  // 20-Minute Inactivity Timer Hook
+  useEffect(() => {
+    if (!token) return; // Only monitor activity when logged in
+
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const resetInactivityTimer = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        handleLogout();
+      }, INACTIVITY_LIMIT);
+    };
+
+    // User activity trigger events
+    const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+
+    events.forEach((event) => {
+      window.addEventListener(event, resetInactivityTimer);
+    });
+
+    // Initialize timer on mount
+    resetInactivityTimer();
+
+    return () => {
+      clearTimeout(timeoutId);
+      events.forEach((event) => {
+        window.removeEventListener(event, resetInactivityTimer);
+      });
+    };
+  }, [token, handleLogout]);
 
   return (
     <AppContext.Provider value={{ token, user, searchQuery, setSearchQuery, isDarkMode, setActiveItem, setIsAiOpen }}>
