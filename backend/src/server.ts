@@ -64,7 +64,7 @@ app.use(express.urlencoded({ extended: true }));
 app.get('/', (req, res) => {
   res.status(200).json({
     status: 'success',
-    message: '🚀 Tradara Backend API is running successfully!',
+    message: ' Tradara Backend API is running successfully!',
     timestamp: new Date().toISOString()
   });
 });
@@ -102,6 +102,6 @@ app.use((err: any, req: any, res: any, next: any) => {
 });
 
 httpServer.listen(PORT, () => {
-    console.log(`\n🚀 [BACKEND] Tradara Server running on port ${PORT}.`);
-    console.log(`📂 [PRISMA] Singleton Client recognized.`);
+    console.log(`\n [BACKEND] Tradara Server running on port ${PORT}.`);
+    console.log(` [PRISMA] Singleton Client recognized.`);
 });
