@@ -17,23 +17,17 @@ import {
   Send, 
   Bot, 
   User, 
-  SlidersHorizontal,
-  Tag,
-  ShieldCheck,
-  Zap,
-  MoreVertical,
-  Edit2,
-  Trash2,
-  Copy,
   Star,
   Archive,
-  Share2,
-  Download,
-  RotateCcw,
+  Trash2,
+  Edit2,
   Check,
+  Copy,
   ThumbsUp,
   ThumbsDown,
-  Square
+  Zap,
+  MoreVertical,
+  Lock
 } from 'lucide-react';
 
 interface Message {
@@ -52,6 +46,7 @@ interface ChatThread {
   category: 'pinned' | 'recent' | 'archived';
   preview: string;
   isFavorite?: boolean;
+  updatedAt?: string;
 }
 
 interface TradaraAISidebarProps {
@@ -74,23 +69,23 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
   const [currentMessage, setCurrentMessage] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
-
-  // Mock chat threads with blue-theme workspace organization
-  const [pinnedThreads, setPinnedThreads] = useState<ChatThread[]>([
-    { id: 'p1', title: 'Push Code to GitHub', category: 'pinned', preview: 'Configuring automated CI/CD workflows...', isFavorite: true },
-    { id: 'p2', title: 'Unconventional Income Strategies', category: 'pinned', preview: 'Analyzing digital asset monetization...', isFavorite: true },
-    { id: 'p3', title: 'Viral AI Quotes Prompt', category: 'pinned', preview: 'Optimizing high-engagement copy...' },
-    { id: 'p4', title: 'Cybersecurity Overview', category: 'pinned', preview: 'Zero Trust & NIST framework review...' }
+  
+  // Real dynamic conversation threads state (Hardcoded placeholder mock data removed)
+  const [threads, setThreads] = useState<ChatThread[]>([
+    {
+      id: 'conv-default-1',
+      title: initialContext?.productName ? `Inquiring about ${initialContext.productName}` : 'General Marketplace Assistance',
+      category: 'recent',
+      preview: initialContext?.productName ? `Analyzing pricing for ${initialContext.productName}...` : 'Started new session with Tradara AI GOAT Engine.',
+      isFavorite: true,
+      updatedAt: 'Just now'
+    }
   ]);
 
-  const [recentThreads, setRecentThreads] = useState<ChatThread[]>([
-    { id: 'r1', title: 'Write Logbook Entries', category: 'recent', preview: 'SIWES weekly activity breakdown...' },
-    { id: 'r2', title: 'Upgrade Tradara AI UI', category: 'recent', preview: 'Implementing blue & white design system...' },
-    { id: 'r3', title: 'Product Negotiation Engine', category: 'recent', preview: 'Gemini SDK generative pricing logic...' }
-  ]);
+  const [activeThreadId, setActiveThreadId] = useState<string>('conv-default-1');
+  const [editingThreadId, setEditingThreadId] = useState<string | null>(null);
+  const [editingTitleText, setEditingTitleText] = useState('');
 
-  const [activeThreadId, setActiveThreadId] = useState<string>('r2');
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'm1',
@@ -98,7 +93,7 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
       text: initialContext?.productName 
         ? `Hello! I am the TRADARA AI GOAT ENGINE. I am analyzing "${initialContext.productName}" priced at ${initialContext.price || 'N/A'}. Let's negotiate or explore product specifications!`
         : `Hello! I am the TRADARA AI GOAT ENGINE, your advanced persistent assistant. Ask me any question, explore marketplace intelligence, or start dynamic negotiations!`,
-      timestamp: '16:18',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       isPinned: false
     }
   ]);
@@ -117,29 +112,84 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
     e.preventDefault();
     if (!currentMessage.trim() || isGenerating) return;
 
+    const userText = currentMessage.trim();
     const userMsg: Message = {
       id: Date.now().toString(),
       sender: 'user',
-      text: currentMessage.trim(),
+      text: userText,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
     setMessages((prev) => [...prev, userMsg]);
-    const query = currentMessage;
     setCurrentMessage('');
     setIsGenerating(true);
+
+    // Update active thread preview & title if it's the first user turn
+    setThreads(prev => prev.map(t => {
+      if (t.id === activeThreadId) {
+        return {
+          ...t,
+          title: t.title === 'General Marketplace Assistance' ? userText.slice(0, 30) + '...' : t.title,
+          preview: userText,
+          updatedAt: 'Just now'
+        };
+      }
+      return t;
+    }));
 
     // Simulate GOAT Engine Intelligent Streaming Response with Blue styling
     setTimeout(() => {
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
         sender: 'ai',
-        text: `[GOAT ENGINE ACTIVE] Processing query regarding "${query}". Leveraging real-time marketplace context and Gemini intelligence to optimize your workflow and secure the best outcome.`,
+        text: `[GOAT ENGINE ACTIVE] Processing query regarding "${userText}". Leveraging real-time marketplace context and Gemini intelligence to optimize your workflow and secure the best outcome.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setMessages((prev) => [...prev, aiMsg]);
       setIsGenerating(false);
     }, 800);
+  };
+
+  const handleNewChat = () => {
+    const newId = 'conv-' + Date.now();
+    const newThread: ChatThread = {
+      id: newId,
+      title: 'New Conversation',
+      category: 'recent',
+      preview: 'Ready for your questions...',
+      updatedAt: 'Just now'
+    };
+
+    setThreads(prev => [newThread, ...prev]);
+    setActiveThreadId(newId);
+    setMessages([
+      {
+        id: Date.now().toString(),
+        sender: 'ai',
+        text: 'Started a brand new session with the Tradara AI GOAT Engine. How can I assist you today?',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+    ]);
+  };
+
+  const handleDeleteThread = (e: React.MouseEvent, threadId: string) => {
+    e.stopPropagation();
+    const filtered = threads.filter(t => t.id !== threadId);
+    setThreads(filtered);
+    if (activeThreadId === threadId && filtered.length > 0) {
+      setActiveThreadId(filtered[0].id);
+    }
+  };
+
+  const handleTogglePin = (e: React.MouseEvent, threadId: string) => {
+    e.stopPropagation();
+    setThreads(prev => prev.map(t => {
+      if (t.id === threadId) {
+        const newCategory = t.category === 'pinned' ? 'recent' : 'pinned';
+        return { ...t, category: newCategory };
+      }
+      return t;
+    }));
   };
 
   const handleCopyText = (text: string, id: string) => {
@@ -148,17 +198,13 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const togglePinMessage = (id: string) => {
-    setMessages(prev => prev.map(m => m.id === id ? { ...m, isPinned: !m.isPinned } : m));
-  };
+  const filteredThreads = threads.filter(t => 
+    t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    t.preview.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
-  const toggleSaveMessage = (id: string) => {
-    setMessages(prev => prev.map(m => m.id === id ? { ...m, isSaved: !m.isSaved } : m));
-  };
-
-  const setFeedback = (id: string, type: 'good' | 'bad') => {
-    setMessages(prev => prev.map(m => m.id === id ? { ...m, feedback: m.feedback === type ? null : type } : m));
-  };
+  const pinnedThreads = filteredThreads.filter(t => t.category === 'pinned');
+  const recentThreads = filteredThreads.filter(t => t.category === 'recent');
 
   if (!isOpen) return null;
 
@@ -252,33 +298,42 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search chats, prompts, or items..."
+                    placeholder="Search user conversations & messages..."
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50"
                   />
                 </div>
                 <button 
-                  onClick={() => {
-                    setMessages([{ id: Date.now().toString(), sender: 'ai', text: 'Started a brand new session. How can the GOAT ENGINE assist you today?', timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]);
-                  }}
+                  onClick={handleNewChat}
                   className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-blue-600/20"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  <span>New</span>
+                  <span>New Chat</span>
                 </button>
               </div>
 
-              {/* Quick Navigation Drawer items (Pinned & Recents preview) */}
+              {/* Dynamic Conversation Threads Quick Bar */}
               <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
                 <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-1.5 py-1 flex items-center gap-1 flex-shrink-0">
-                  <Pin className="h-3 w-3 text-blue-400" /> Pinned:
+                  <Pin className="h-3 w-3 text-blue-400" /> Active:
                 </div>
                 {pinnedThreads.map((t) => (
                   <button 
                     key={t.id}
                     onClick={() => setActiveThreadId(t.id)}
-                    className="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-800 text-[11px] text-slate-300 flex-shrink-0 border border-slate-700/50 transition-all truncate max-w-[140px]"
+                    className={`px-2.5 py-1 rounded-lg text-[11px] flex-shrink-0 border transition-all truncate max-w-[140px] flex items-center gap-1.5 ${activeThreadId === t.id ? 'bg-blue-600/30 border-blue-500 text-blue-300 font-medium' : 'bg-slate-800/80 border-slate-700/50 text-slate-300 hover:bg-slate-800'}`}
                   >
-                    {t.title}
+                    <span>{t.title}</span>
+                    <span onClick={(e) => handleTogglePin(e, t.id)} className="hover:text-white"><Pin className="h-2.5 w-2.5 text-blue-400" /></span>
+                  </button>
+                ))}
+                {recentThreads.map((t) => (
+                  <button 
+                    key={t.id}
+                    onClick={() => setActiveThreadId(t.id)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] flex-shrink-0 border transition-all truncate max-w-[140px] flex items-center gap-1.5 ${activeThreadId === t.id ? 'bg-blue-600/30 border-blue-500 text-blue-300 font-medium' : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800'}`}
+                  >
+                    <span>{t.title}</span>
+                    <span onClick={(e) => handleTogglePin(e, t.id)} className="opacity-40 hover:opacity-100"><Pin className="h-2.5 w-2.5" /></span>
                   </button>
                 ))}
               </div>
@@ -307,10 +362,9 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
                       {/* Message metadata & actions */}
                       <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-white/5 text-[9px]">
                         <span className={msg.sender === 'user' ? 'text-blue-100/70' : 'text-slate-500'}>
-                          {msg.timestamp} {msg.isPinned && '• 📌 Pinned'} {msg.isSaved && '• 💾 Saved'}
+                          {msg.timestamp}
                         </span>
                         
-                        {/* Hover Message Actions */}
                         <div className="opacity-0 group-hover/msg:opacity-100 transition-opacity flex items-center gap-1.5 ml-2">
                           <button 
                             onClick={() => handleCopyText(msg.text, msg.id)}
@@ -319,36 +373,6 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
                           >
                             {copiedId === msg.id ? <Check className="h-3 w-3 text-blue-400" /> : <Copy className="h-3 w-3" />}
                           </button>
-                          <button 
-                            onClick={() => togglePinMessage(msg.id)}
-                            title={msg.isPinned ? "Unpin message" : "Pin message"}
-                            className={`p-1 rounded hover:bg-white/10 ${msg.isPinned ? 'text-blue-400' : 'text-slate-300'}`}
-                          >
-                            <Pin className="h-3 w-3" />
-                          </button>
-                          <button 
-                            onClick={() => toggleSaveMessage(msg.id)}
-                            title={msg.isSaved ? "Remove bookmark" : "Bookmark message"}
-                            className={`p-1 rounded hover:bg-white/10 ${msg.isSaved ? 'text-blue-400' : 'text-slate-300'}`}
-                          >
-                            <Star className="h-3 w-3" />
-                          </button>
-                          {msg.sender === 'ai' && (
-                            <>
-                              <button 
-                                onClick={() => setFeedback(msg.id, 'good')}
-                                className={`p-1 rounded hover:bg-white/10 ${msg.feedback === 'good' ? 'text-blue-400' : 'text-slate-300'}`}
-                              >
-                                <ThumbsUp className="h-3 w-3" />
-                              </button>
-                              <button 
-                                onClick={() => setFeedback(msg.id, 'bad')}
-                                className={`p-1 rounded hover:bg-white/10 ${msg.feedback === 'bad' ? 'text-red-400' : 'text-slate-300'}`}
-                              >
-                                <ThumbsDown className="h-3 w-3" />
-                              </button>
-                            </>
-                          )}
                         </div>
                       </div>
                     </div>
@@ -386,10 +410,10 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
                 <span className="flex items-center gap-1 text-blue-400">
                   <Zap className="h-3 w-3" /> Ready for live negotiation
                 </span>
-              </div>
             </div>
-
           </div>
+
+        </div>
         ) : activeTab === 'library' ? (
           <div className="flex-1 p-6 space-y-4 overflow-y-auto">
             <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
