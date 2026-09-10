@@ -15,8 +15,7 @@ import { ForgotPassword } from "./pages/ForgotPassword";
 import { ResetPasswordPage } from "./pages/ResetPassword";
 import { CartProvider, useCart } from "./context/CartContext"; 
 import { ProductDetail } from './pages/ProductDetails'; 
-import { TradaraAiDrawer } from './components/chat/TradaraAiDrawer';
-import type { ItemContext } from './components/chat/TradaraAiDrawer';
+import { TradaraAISidebar } from './components/ai/TradaraAISidebar';
 
 export const AppContext = createContext<any>(null);
 
@@ -28,7 +27,7 @@ const AppContent: React.FC = () => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isAiOpen, setIsAiOpen] = useState(false);
-  const [activeItem, setActiveItem] = useState<ItemContext | null>(null);
+  const [activeItem, setActiveItem] = useState<{ title?: string; price?: string; category?: string } | null>(null);
   const [buyerSession] = useState<string>(() => {
     let session = localStorage.getItem('tradara_buyer_session');
     if (!session) {
@@ -183,13 +182,15 @@ const AppContent: React.FC = () => {
           </button>
         )}
 
-        {/* TRADARA AI Persistent Drawer */}
-        <TradaraAiDrawer
+        {/* TRADARA AI Sidebar Drawer */}
+        <TradaraAISidebar
           isOpen={isAiOpen}
           onClose={() => setIsAiOpen(false)}
-          activeItem={activeItem}
-          buyerSession={buyerSession}
-          buyerId={user?.id}
+          initialContext={activeItem ? {
+            productName: activeItem.title,
+            price: activeItem.price,
+            category: activeItem.category
+          } : undefined}
         />
       </div>
     </AppContext.Provider>
