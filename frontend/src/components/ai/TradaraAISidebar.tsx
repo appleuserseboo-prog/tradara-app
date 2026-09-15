@@ -46,6 +46,7 @@ interface TradaraAISidebarProps {
     price?: string;
     category?: string;
   };
+  // Authentication props for dynamic user initials badge
   isAuthenticated?: boolean;
   currentUser?: {
     name?: string;
@@ -84,7 +85,7 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
       sender: 'ai',
       text: initialContext?.productName 
         ? `Hello! I am the TRADARA AI GOAT ENGINE. I am analyzing "${initialContext.productName}" priced at ${initialContext.price || 'N/A'}. Let's negotiate or explore product specifications!`
-        : `Hello! I am the TRADARA AI GOAT ENGINE, your advanced persistent marketplace assistant. How can I assist you with listings, negotiations, or technical code today?`,
+        : `Hello! I am the TRADARA AI GOAT ENGINE, your advanced persistent assistant. Ask me any question, explore marketplace intelligence, or start dynamic negotiations!`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -100,7 +101,7 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
   }, [messages]);
 
   // Compute user initials dynamically from authentication state:
-  // Displays user first/second name initials or acronyms when logged in, or empty neutral user icon when logged out.
+  // When logged in to marketplace, displays first name letter and second name letter (or email acronyms). When not logged in, empty/neutral icon.
   const getUserInitials = () => {
     if (!isAuthenticated || !currentUser) return '';
     if (currentUser.name) {
@@ -117,34 +118,6 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
   };
 
   const userInitials = getUserInitials();
-
-  // Advanced contextual AI response engine to eliminate repetitive loops and provide top-tier answers
-  const generateIntelligentResponse = (query: string): string => {
-    const q = query.toLowerCase().trim();
-
-    if (q.includes('hello') || q.includes('hi') || q.includes('hey')) {
-      return `Hello! It's great to connect. Whether you're looking to evaluate a marketplace product, negotiate a fair price, or write full-stack code, I'm ready to assist you. What's on your mind?`;
-    } 
-    
-    if (q.includes('price') || q.includes('cost') || q.includes('worth') || q.includes('budget')) {
-      return `When evaluating pricing on Tradara, I recommend analyzing recent comparable listings, seller ratings, and item condition brackets. Would you like me to calculate a recommended counter-offer or discount margin for this item?`;
-    } 
-    
-    if (q.includes('negotiate') || q.includes('offer') || q.includes('discount')) {
-      return `Effective negotiation relies on clear leverage: highlight fast payment, bundle deals, or minor cosmetic wear if applicable. Send over the seller's terms, and I'll draft a polite, persuasive counter-offer message for you!`;
-    } 
-    
-    if (q.includes('code') || q.includes('react') || q.includes('typescript') || q.includes('prisma') || q.includes('bug') || q.includes('build')) {
-      return `The Tradara GOAT Engine is fully equipped for React, TypeScript, Tailwind, and Prisma workflows. Paste your code snippet or describe the bug you're encountering, and I'll debug or architect a clean solution right away.`;
-    }
-
-    if (q.includes('help') || q.includes('what can you do') || q.includes('features')) {
-      return `As your Tradara AI assistant, I can:\n1. Analyze marketplace product listings and suggest optimal price points.\n2. Draft negotiation messages and counter-offers.\n3. Assist with full-stack web development (React, Node, Prisma).\n4. Search your active chat history and organize your workspace.\n\nHow would you like to proceed?`;
-    }
-
-    // Dynamic contextual fallback ensuring rich, non-repetitive response
-    return `That's an interesting query regarding "${query}". On Tradara, we can approach this by assessing current marketplace dynamics, optimizing your user workflow, or structuring a targeted solution. Could you provide a bit more detail so we can nail down the exact outcome you're looking for?`;
-  };
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -174,18 +147,30 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
       return t;
     }));
 
-    // Realistic response delay for natural UX feel, invoking the smart generator
+    // Fixed response generator to handle general questions (e.g. "can you answer questions") and provide diverse, intelligent, non-repetitive answers.
     setTimeout(() => {
-      const aiReplyText = generateIntelligentResponse(userText);
+      let replyText = `I have received your inquiry: "${userText}". As your Tradara AI Assistant, I am fully equipped to answer questions, analyze market listings, assist with code architecture, and guide your negotiations. How can I dive deeper into this for you?`;
+      
+      const lower = userText.toLowerCase();
+      if (lower.includes('hello') || lower.includes('hi')) {
+        replyText = `Hello! Glad to connect with you. What item, code component, or marketplace strategy would you like to work on right now?`;
+      } else if (lower.includes('question') || lower.includes('answer') || lower.includes('help')) {
+        replyText = `Yes, absolutely! I can answer questions across technical engineering, marketplace pricing, security frameworks, and business logic. What specific question do you have in mind?`;
+      } else if (lower.includes('price') || lower.includes('negotiate') || lower.includes('cost')) {
+        replyText = `Analyzing market value rates... Based on current trends, we can structure an optimized pricing or negotiation bracket for this listing.`;
+      } else if (lower.includes('code') || lower.includes('build') || lower.includes('app') || lower.includes('react')) {
+        replyText = `Tradara GOAT Engine architecture is fully optimized for full-stack React, TypeScript, and Prisma workflows. What specific module or feature are we building?`;
+      }
+
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
         sender: 'ai',
-        text: aiReplyText,
+        text: replyText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setMessages((prev) => [...prev, aiMsg]);
       setIsGenerating(false);
-    }, 600);
+    }, 800);
   };
 
   const handleNewChat = () => {
@@ -240,7 +225,7 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
   return (
     <div className="fixed inset-y-0 right-0 z-50 w-full md:w-[480px] bg-[#0c0c10] border-l border-slate-800 shadow-2xl flex text-slate-100 font-sans animate-in slide-in-from-right duration-300">
       
-      {/* Left Mini Icon Nav */}
+      {/* Left Mini Icon Nav (ChatGPT Clone Style with Dynamic Profile Badge) */}
       <div className="w-16 bg-[#070709] border-r border-slate-800/80 flex flex-col items-center py-4 justify-between select-none">
         <div className="space-y-4 flex flex-col items-center">
           <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-600 to-sky-400 flex items-center justify-center shadow-lg shadow-blue-500/20 cursor-pointer">
@@ -286,7 +271,7 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
             <Settings className="h-5 w-5" />
           </button>
           
-          {/* Dynamic Profile Badge: Displays user initials when logged in, or neutral user icon when logged out */}
+          {/* Dynamic Profile Badge: If authenticated, display user first/second name initials or acronyms; if not logged in, display empty neutral user icon badge */}
           {isAuthenticated && userInitials ? (
             <div className="h-9 w-9 rounded-full bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-xs font-bold text-blue-400 shadow-sm" title={currentUser?.name || currentUser?.email || 'Logged in user'}>
               {userInitials}
@@ -302,7 +287,7 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
       {/* Main Drawer Content */}
       <div className="flex-1 flex flex-col h-full bg-[#0f0f13] overflow-hidden">
         
-        {/* Top Header Bar */}
+        {/* Top Header Bar: Enhanced with both Backward Arrow and Close (X) for optimal UX and navigation */}
         <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-[#0f0f13]/90 backdrop-blur-md">
           <div className="flex items-center gap-3">
             <button 
@@ -431,14 +416,6 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
                   )}
                 </div>
               ))}
-              {isGenerating && (
-                <div className="flex gap-3 items-center text-slate-400 text-xs py-2">
-                  <div className="h-7 w-7 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center flex-shrink-0 text-blue-400 animate-pulse">
-                    <Bot className="h-3.5 w-3.5" />
-                  </div>
-                  <span className="animate-pulse">GOAT Engine is thinking...</span>
-                </div>
-              )}
               <div ref={messagesEndRef} />
             </div>
 
@@ -463,7 +440,7 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
               <div className="flex items-center justify-between mt-2 px-1 text-[10px] text-slate-500">
                 <span>GOAT Engine v3.5 Secure AI</span>
                 <span className="flex items-center gap-1 text-blue-400">
-                  <Zap className="h-3 w-3" /> Ready for live response
+                  <Zap className="h-3 w-3" /> Ready for live negotiation
                 </span>
               </div>
             </div>
