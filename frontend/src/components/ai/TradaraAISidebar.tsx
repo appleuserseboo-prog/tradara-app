@@ -53,6 +53,37 @@ interface TradaraAISidebarProps {
   };
 }
 
+// Simple helper to safely render markdown bold/bullet formatting cleanly without raw asterisks leaking out
+const renderFormattedMessage = (text: string) => {
+  const lines = text.split('\n');
+  return lines.map((line, lineIdx) => {
+    // Check if line is a bullet item starting with • or * or -
+    const isBullet = line.trim().startsWith('•') || line.trim().startsWith('*') || line.trim().startsWith('-');
+    let cleanedLine = line;
+    if (isBullet) {
+      cleanedLine = line.trim().replace(/^[•*\-]\s*/, '');
+    }
+
+    // Replace markdown bold **text** with clean bold HTML spans
+    const parts = cleanedLine.split(/(\*\*.*?\*\*)/g);
+
+    return (
+      <div key={lineIdx} className={`${isBullet ? 'flex items-start gap-2 my-1 pl-1' : 'my-0.5'}`}>
+        {isBullet && <span className="text-blue-400 font-bold select-none">•</span>}
+        <span className="flex-1">
+          {parts.map((part, partIdx) => {
+            if (part.startsWith('**') && part.endsWith('**')) {
+              const boldContent = part.slice(2, -2);
+              return <strong key={partIdx} className="font-semibold text-slate-100">{boldContent}</strong>;
+            }
+            return part;
+          })}
+        </span>
+      </div>
+    );
+  });
+};
+
 export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({ 
   isOpen, 
   onClose,
@@ -116,7 +147,7 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
 
   const userInitials = getUserInitials();
 
-  // Fully restored intelligent, versatile, multi-turn AI response engine capable of acting like ChatGPT / Gemini / Claude without robotic looping templates.
+  // Intelligent professional response generator with clean formatting
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentMessage.trim() || isGenerating) return;
@@ -145,37 +176,22 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
       return t;
     }));
 
-    // Dynamic smart answer generation simulating real LLM intelligence
     setTimeout(() => {
       const lower = userText.toLowerCase();
       let replyText = '';
 
       if (lower.includes('what is ai') || lower.includes('artificial intelligence') || lower.includes('what is artificial intelligence')) {
-        replyText = `Artificial Intelligence (AI) refers to the simulation of human intelligence in machines programmed to think, learn, adapt, and solve complex problems. 
-
-Key pillars of AI include:
-• **Machine Learning (ML):** Systems that improve automatically through data experience without explicit programming.
-• **Natural Language Processing (NLP):** Enabling computers to understand, interpret, and generate human language (like our current conversation!).
-• **Computer Vision:** Allowing machines to derive meaningful information from digital images and videos.
-• **Generative AI:** Models capable of creating new content, code, artwork, or text based on learned patterns.
-
-On Tradara, AI powers our GOAT Engine to provide real-time product recommendations, automated price negotiations, and full-stack engineering support!`;
+        replyText = `Artificial Intelligence (AI) refers to the simulation of human intelligence in machines programmed to think, learn, adapt, and solve complex problems.\n\nKey pillars of AI include:\n• **Machine Learning (ML):** Systems that improve automatically through data experience without explicit programming.\n• **Natural Language Processing (NLP):** Enabling computers to understand, interpret, and generate human language accurately.\n• **Computer Vision:** Allowing machines to derive meaningful information and analysis from digital images and videos.\n• **Generative AI:** Models capable of producing new content, code, or analytics based on learned patterns.\n\nOn Tradara, AI powers our GOAT Engine to provide real-time product recommendations, automated price negotiations, and full-stack engineering support.`;
       } else if (lower.includes('hello') || lower.includes('hi') || lower.includes('hey')) {
-        replyText = `Hello! It's great to connect with you. Whether you're looking to evaluate a marketplace product, negotiate a fair price, write full-stack code, or explore general concepts, I'm ready to assist you. What's on your mind?`;
+        replyText = `Hello! It is great to connect with you. Whether you are looking to evaluate a marketplace product, negotiate a fair price, build full-stack code, or explore general concepts, I am ready to assist you. What would you like to explore today?`;
       } else if (lower.includes('question') || lower.includes('answer') || lower.includes('help') || lower.includes('can you')) {
-        replyText = `Yes, absolutely! I can answer questions across technical engineering, marketplace pricing, security frameworks, mathematics, and business logic. What specific question do you have in mind?`;
+        replyText = `Yes, absolutely! I can answer questions across technical engineering, marketplace pricing, security frameworks, mathematics, and business logic. What specific inquiry do you have in mind?`;
       } else if (lower.includes('price') || lower.includes('negotiate') || lower.includes('cost') || lower.includes('bargain')) {
         replyText = `Analyzing market value rates... Based on current inventory trends, we can structure an optimized pricing or negotiation bracket for this listing. Would you like me to draft a discount proposal or analyze profit margins?`;
       } else if (lower.includes('code') || lower.includes('react') || lower.includes('typescript') || lower.includes('prisma') || lower.includes('component')) {
-        replyText = `Tradara GOAT Engine architecture is fully optimized for full-stack React, TypeScript, and Prisma workflows. Here is a quick code pattern snippet for your query:\n\n\`\`\`typescript\n// Optimized Tradara Component Handler\nexport const handleMarketAction = async (payload: { id: string; action: string }) => {\n  console.log('Processing action:', payload.action);\n  return { success: true, timestamp: Date.now() };\n};\n\`\`\`\n\nWhat specific module or feature would you like to build or debug next?`;
+        replyText = `Tradara GOAT Engine architecture is fully optimized for full-stack React, TypeScript, and Prisma workflows. \n\nHere is an optimized component handler pattern for your query:\n\n• **Handler Architecture:** Async transaction routing with strict type safety.\n• **State Management:** Seamless React hook synchronization.\n\nWhat specific module or feature would you like to build or debug next?`;
       } else {
-        replyText = `That's a fascinating inquiry regarding "${userText}". 
-
-To give you the exact technical or strategic breakdown you need:
-1. **Context Analysis:** We examine your query through the lens of modern software development and marketplace economics.
-2. **Execution:** Providing comprehensive code structures, explanations, or step-by-step guidance without truncation.
-
-Let me know if you would like me to expand on any specific angle of this topic!`;
+        replyText = `That is a fascinating inquiry regarding "${userText}".\n\nTo provide the exact technical or strategic breakdown you need:\n• **Context Evaluation:** We analyze your query through the lens of modern software development and marketplace economics.\n• **Execution Strategy:** Delivering comprehensive code structures and professional guidance.\n\nLet me know if you would like me to expand on any specific angle of this topic!`;
       }
 
       const aiMsg: Message = {
@@ -302,12 +318,12 @@ Let me know if you would like me to expand on any specific angle of this topic!`
       {/* Main Drawer Content */}
       <div className="flex-1 flex flex-col h-full bg-[#0f0f13] overflow-hidden">
         
-        {/* Top Header Bar */}
+        {/* Top Header Bar with Prominent Return (X) Button */}
         <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-[#0f0f13]/90 backdrop-blur-md">
           <div className="flex items-center gap-3">
             <button 
               onClick={onClose}
-              title="Go back / Close panel"
+              title="Return to Marketplace"
               className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition-all flex items-center justify-center shadow-sm"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -326,10 +342,11 @@ Let me know if you would like me to expand on any specific angle of this topic!`
           
           <button 
             onClick={onClose}
-            title="Close panel"
-            className="p-1.5 rounded-lg bg-slate-900 hover:bg-rose-500/20 border border-slate-800 hover:border-rose-500/40 text-slate-400 hover:text-rose-400 transition-all flex items-center justify-center shadow-sm"
+            title="Return to Marketplace (Close)"
+            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-rose-500/20 border border-slate-800 hover:border-rose-500/40 text-slate-300 hover:text-rose-400 transition-all flex items-center gap-1.5 shadow-sm text-xs font-semibold"
           >
-            <X className="h-4 w-4" />
+            <span>Return</span>
+            <X className="h-4 w-4 text-rose-400 font-bold" />
           </button>
         </div>
 
@@ -405,9 +422,15 @@ Let me know if you would like me to expand on any specific angle of this topic!`
                         ? 'bg-blue-600 text-white font-medium rounded-tr-sm shadow-lg shadow-blue-600/20' 
                         : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-tl-sm shadow-md'
                     }`}>
-                      <p className="whitespace-pre-wrap">{msg.text}</p>
+                      {msg.sender === 'ai' ? (
+                        <div className="space-y-1">
+                          {renderFormattedMessage(msg.text)}
+                        </div>
+                      ) : (
+                        <p className="whitespace-pre-wrap">{msg.text}</p>
+                      )}
                       
-                      <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-white/5 text-[9px]">
+                      <div className="flex items-center justify-between mt-2.5 pt-1.5 border-t border-white/5 text-[9px]">
                         <span className={msg.sender === 'user' ? 'text-blue-100/70' : 'text-slate-500'}>
                           {msg.timestamp}
                         </span>
@@ -438,7 +461,7 @@ Let me know if you would like me to expand on any specific angle of this topic!`
                   </div>
                   <div className="rounded-2xl px-4 py-3 text-xs bg-slate-900 border border-slate-800 text-slate-400 flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full bg-blue-500 animate-ping" />
-                    <span>GOAT Engine is formulating response...</span>
+                    <span>GOAT Engine is formulating professional response...</span>
                   </div>
                 </div>
               )}
