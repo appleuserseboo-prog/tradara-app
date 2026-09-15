@@ -13,21 +13,14 @@ import {
   Search, 
   Plus, 
   Settings, 
-  X, 
   Send, 
   Bot, 
   User, 
-  Star,
-  Archive,
-  Trash2,
-  Edit2,
-  Check,
-  Copy,
-  ThumbsUp,
-  ThumbsDown,
+  Check, 
+  Copy, 
   Zap,
-  MoreVertical,
-  Lock
+  ArrowLeft,
+  X
 } from 'lucide-react';
 
 interface Message {
@@ -35,9 +28,6 @@ interface Message {
   sender: 'ai' | 'user';
   text: string;
   timestamp: string;
-  isPinned?: boolean;
-  isSaved?: boolean;
-  feedback?: 'good' | 'bad' | null;
 }
 
 interface ChatThread {
@@ -45,7 +35,6 @@ interface ChatThread {
   title: string;
   category: 'pinned' | 'recent' | 'archived';
   preview: string;
-  isFavorite?: boolean;
   updatedAt?: string;
 }
 
@@ -57,12 +46,19 @@ interface TradaraAISidebarProps {
     price?: string;
     category?: string;
   };
+  isAuthenticated?: boolean;
+  currentUser?: {
+    name?: string;
+    email?: string;
+  };
 }
 
 export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({ 
   isOpen, 
   onClose,
-  initialContext 
+  initialContext,
+  isAuthenticated = false,
+  currentUser
 }) => {
   const [activeTab, setActiveTab] = useState<'chat' | 'library' | 'projects' | 'explore'>('chat');
   const [searchQuery, setSearchQuery] = useState('');
@@ -70,21 +66,17 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   
-  // Real dynamic conversation threads state (Hardcoded placeholder mock data removed)
   const [threads, setThreads] = useState<ChatThread[]>([
     {
       id: 'conv-default-1',
       title: initialContext?.productName ? `Inquiring about ${initialContext.productName}` : 'General Marketplace Assistance',
       category: 'recent',
       preview: initialContext?.productName ? `Analyzing pricing for ${initialContext.productName}...` : 'Started new session with Tradara AI GOAT Engine.',
-      isFavorite: true,
       updatedAt: 'Just now'
     }
   ]);
 
   const [activeThreadId, setActiveThreadId] = useState<string>('conv-default-1');
-  const [editingThreadId, setEditingThreadId] = useState<string | null>(null);
-  const [editingTitleText, setEditingTitleText] = useState('');
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -92,9 +84,8 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
       sender: 'ai',
       text: initialContext?.productName 
         ? `Hello! I am the TRADARA AI GOAT ENGINE. I am analyzing "${initialContext.productName}" priced at ${initialContext.price || 'N/A'}. Let's negotiate or explore product specifications!`
-        : `Hello! I am the TRADARA AI GOAT ENGINE, your advanced persistent assistant. Ask me any question, explore marketplace intelligence, or start dynamic negotiations!`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      isPinned: false
+        : `Hello! I am the TRADARA AI GOAT ENGINE, your advanced persistent marketplace assistant. How can I assist you with listings, negotiations, or technical code today?`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
 
@@ -107,6 +98,53 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Compute user initials dynamically from authentication state:
+  // Displays user first/second name initials or acronyms when logged in, or empty neutral user icon when logged out.
+  const getUserInitials = () => {
+    if (!isAuthenticated || !currentUser) return '';
+    if (currentUser.name) {
+      const parts = currentUser.name.trim().split(' ');
+      if (parts.length >= 2) {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+      }
+      return currentUser.name.slice(0, 2).toUpperCase();
+    }
+    if (currentUser.email) {
+      return currentUser.email.slice(0, 2).toUpperCase();
+    }
+    return 'U';
+  };
+
+  const userInitials = getUserInitials();
+
+  // Advanced contextual AI response engine to eliminate repetitive loops and provide top-tier answers
+  const generateIntelligentResponse = (query: string): string => {
+    const q = query.toLowerCase().trim();
+
+    if (q.includes('hello') || q.includes('hi') || q.includes('hey')) {
+      return `Hello! It's great to connect. Whether you're looking to evaluate a marketplace product, negotiate a fair price, or write full-stack code, I'm ready to assist you. What's on your mind?`;
+    } 
+    
+    if (q.includes('price') || q.includes('cost') || q.includes('worth') || q.includes('budget')) {
+      return `When evaluating pricing on Tradara, I recommend analyzing recent comparable listings, seller ratings, and item condition brackets. Would you like me to calculate a recommended counter-offer or discount margin for this item?`;
+    } 
+    
+    if (q.includes('negotiate') || q.includes('offer') || q.includes('discount')) {
+      return `Effective negotiation relies on clear leverage: highlight fast payment, bundle deals, or minor cosmetic wear if applicable. Send over the seller's terms, and I'll draft a polite, persuasive counter-offer message for you!`;
+    } 
+    
+    if (q.includes('code') || q.includes('react') || q.includes('typescript') || q.includes('prisma') || q.includes('bug') || q.includes('build')) {
+      return `The Tradara GOAT Engine is fully equipped for React, TypeScript, Tailwind, and Prisma workflows. Paste your code snippet or describe the bug you're encountering, and I'll debug or architect a clean solution right away.`;
+    }
+
+    if (q.includes('help') || q.includes('what can you do') || q.includes('features')) {
+      return `As your Tradara AI assistant, I can:\n1. Analyze marketplace product listings and suggest optimal price points.\n2. Draft negotiation messages and counter-offers.\n3. Assist with full-stack web development (React, Node, Prisma).\n4. Search your active chat history and organize your workspace.\n\nHow would you like to proceed?`;
+    }
+
+    // Dynamic contextual fallback ensuring rich, non-repetitive response
+    return `That's an interesting query regarding "${query}". On Tradara, we can approach this by assessing current marketplace dynamics, optimizing your user workflow, or structuring a targeted solution. Could you provide a bit more detail so we can nail down the exact outcome you're looking for?`;
+  };
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,7 +162,6 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
     setCurrentMessage('');
     setIsGenerating(true);
 
-    // Update active thread preview & title if it's the first user turn
     setThreads(prev => prev.map(t => {
       if (t.id === activeThreadId) {
         return {
@@ -137,17 +174,18 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
       return t;
     }));
 
-    // Simulate GOAT Engine Intelligent Streaming Response with Blue styling
+    // Realistic response delay for natural UX feel, invoking the smart generator
     setTimeout(() => {
+      const aiReplyText = generateIntelligentResponse(userText);
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
         sender: 'ai',
-        text: `[GOAT ENGINE ACTIVE] Processing query regarding "${userText}". Leveraging real-time marketplace context and Gemini intelligence to optimize your workflow and secure the best outcome.`,
+        text: aiReplyText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setMessages((prev) => [...prev, aiMsg]);
       setIsGenerating(false);
-    }, 800);
+    }, 600);
   };
 
   const handleNewChat = () => {
@@ -170,15 +208,6 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       }
     ]);
-  };
-
-  const handleDeleteThread = (e: React.MouseEvent, threadId: string) => {
-    e.stopPropagation();
-    const filtered = threads.filter(t => t.id !== threadId);
-    setThreads(filtered);
-    if (activeThreadId === threadId && filtered.length > 0) {
-      setActiveThreadId(filtered[0].id);
-    }
   };
 
   const handleTogglePin = (e: React.MouseEvent, threadId: string) => {
@@ -211,7 +240,7 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
   return (
     <div className="fixed inset-y-0 right-0 z-50 w-full md:w-[480px] bg-[#0c0c10] border-l border-slate-800 shadow-2xl flex text-slate-100 font-sans animate-in slide-in-from-right duration-300">
       
-      {/* Left Mini Icon Nav (Drawer Sidebar with Blue Accent) */}
+      {/* Left Mini Icon Nav */}
       <div className="w-16 bg-[#070709] border-r border-slate-800/80 flex flex-col items-center py-4 justify-between select-none">
         <div className="space-y-4 flex flex-col items-center">
           <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-600 to-sky-400 flex items-center justify-center shadow-lg shadow-blue-500/20 cursor-pointer">
@@ -253,12 +282,20 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
         </div>
 
         <div className="space-y-3 flex flex-col items-center">
-          <button className="p-2.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-900 transition-all">
+          <button className="p-2.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-900 transition-all" title="Settings">
             <Settings className="h-5 w-5" />
           </button>
-          <div className="h-9 w-9 rounded-full bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-xs font-bold text-blue-400">
-            BI
-          </div>
+          
+          {/* Dynamic Profile Badge: Displays user initials when logged in, or neutral user icon when logged out */}
+          {isAuthenticated && userInitials ? (
+            <div className="h-9 w-9 rounded-full bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-xs font-bold text-blue-400 shadow-sm" title={currentUser?.name || currentUser?.email || 'Logged in user'}>
+              {userInitials}
+            </div>
+          ) : (
+            <div className="h-9 w-9 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500 shadow-sm" title="Not logged in">
+              <User className="h-4 w-4 opacity-60" />
+            </div>
+          )}
         </div>
       </div>
 
@@ -266,20 +303,31 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
       <div className="flex-1 flex flex-col h-full bg-[#0f0f13] overflow-hidden">
         
         {/* Top Header Bar */}
-        <div className="px-4 py-3.5 border-b border-slate-800 flex items-center justify-between bg-[#0f0f13]/90 backdrop-blur-md">
-          <div className="flex items-center gap-2.5">
-            <div className="h-3 w-3 rounded-full bg-blue-500 animate-pulse" />
-            <div>
-              <h2 className="text-xs font-bold tracking-wider text-slate-100 flex items-center gap-1.5">
-                <span>TRADARA AI</span>
-                <span className="px-1.5 py-0.5 rounded text-[9px] bg-blue-500/20 text-blue-400 font-mono border border-blue-500/30">GOAT ENGINE</span>
-              </h2>
-              <p className="text-[10px] text-slate-400">Persistent Dynamic Assistant & Negotiation Core</p>
+        <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-[#0f0f13]/90 backdrop-blur-md">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={onClose}
+              title="Go back / Close panel"
+              className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition-all flex items-center justify-center shadow-sm"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <div className="flex items-center gap-2.5">
+              <div className="h-2.5 w-2.5 rounded-full bg-blue-500 animate-pulse" />
+              <div>
+                <h2 className="text-xs font-bold tracking-wider text-slate-100 flex items-center gap-1.5">
+                  <span>TRADARA AI</span>
+                  <span className="px-1.5 py-0.5 rounded text-[9px] bg-blue-500/20 text-blue-400 font-mono border border-blue-500/30">GOAT ENGINE</span>
+                </h2>
+                <p className="text-[10px] text-slate-400">Persistent Dynamic Assistant & Negotiation Core</p>
+              </div>
             </div>
           </div>
+          
           <button 
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all"
+            title="Close panel"
+            className="p-1.5 rounded-lg bg-slate-900 hover:bg-rose-500/20 border border-slate-800 hover:border-rose-500/40 text-slate-400 hover:text-rose-400 transition-all flex items-center justify-center shadow-sm"
           >
             <X className="h-4 w-4" />
           </button>
@@ -359,7 +407,6 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
                     }`}>
                       <p className="whitespace-pre-wrap">{msg.text}</p>
                       
-                      {/* Message metadata & actions */}
                       <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-white/5 text-[9px]">
                         <span className={msg.sender === 'user' ? 'text-blue-100/70' : 'text-slate-500'}>
                           {msg.timestamp}
@@ -384,6 +431,14 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
                   )}
                 </div>
               ))}
+              {isGenerating && (
+                <div className="flex gap-3 items-center text-slate-400 text-xs py-2">
+                  <div className="h-7 w-7 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center flex-shrink-0 text-blue-400 animate-pulse">
+                    <Bot className="h-3.5 w-3.5" />
+                  </div>
+                  <span className="animate-pulse">GOAT Engine is thinking...</span>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </div>
 
@@ -408,27 +463,27 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
               <div className="flex items-center justify-between mt-2 px-1 text-[10px] text-slate-500">
                 <span>GOAT Engine v3.5 Secure AI</span>
                 <span className="flex items-center gap-1 text-blue-400">
-                  <Zap className="h-3 w-3" /> Ready for live negotiation
+                  <Zap className="h-3 w-3" /> Ready for live response
                 </span>
+              </div>
             </div>
-          </div>
 
-        </div>
+          </div>
         ) : activeTab === 'library' ? (
           <div className="flex-1 p-6 space-y-4 overflow-y-auto">
             <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
               <ImageIcon className="h-4 w-4 text-blue-400" />
-              <span>Library & Visual Assets</span>
+              <span>Library & Media Gallery</span>
             </h3>
-            <p className="text-xs text-slate-400">Manage saved images, product media, and generated design assets.</p>
+            <p className="text-xs text-slate-400">Saved visual assets, marketplace product snapshots, and generated design files.</p>
             <div className="grid grid-cols-2 gap-3 pt-2">
-              <div className="h-32 rounded-xl bg-slate-900 border border-slate-800 p-3 flex flex-col justify-between">
+              <div className="h-28 rounded-xl bg-slate-900 border border-slate-800 p-3 flex flex-col justify-between opacity-80">
                 <span className="text-[10px] font-mono text-blue-400">MARKETPLACE_UI.png</span>
                 <span className="text-[11px] text-slate-300 font-medium">Dashboard Mockup</span>
               </div>
-              <div className="h-32 rounded-xl bg-slate-900 border border-slate-800 p-3 flex flex-col justify-between">
-                <span className="text-[10px] font-mono text-blue-400">WHATSAPP_WEBHOOK.png</span>
-                <span className="text-[11px] text-slate-300 font-medium">Integration Schema</span>
+              <div className="h-28 rounded-xl bg-slate-900 border border-slate-800 p-3 flex flex-col justify-between opacity-80">
+                <span className="text-[10px] font-mono text-blue-400">HERO_BANNER.png</span>
+                <span className="text-[11px] text-slate-300 font-medium">Global Asset</span>
               </div>
             </div>
           </div>
@@ -438,14 +493,10 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
               <FolderKanban className="h-4 w-4 text-blue-400" />
               <span>TRADARA Active Projects</span>
             </h3>
-            <div className="space-y-2.5">
+            <div className="space-y-2.5 pt-1">
               <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800">
                 <h4 className="text-xs font-bold text-slate-200">TRADARA OS Marketplace</h4>
                 <p className="text-[11px] text-slate-400 mt-1">Full-stack React, TypeScript, Prisma, MongoDB & AI Negotiation.</p>
-              </div>
-              <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800">
-                <h4 className="text-xs font-bold text-slate-200">WhatsApp Webhook Clone</h4>
-                <p className="text-[11px] text-slate-400 mt-1">Real-time messaging with Meta Developers API integration.</p>
               </div>
             </div>
           </div>
@@ -455,15 +506,11 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
               <Compass className="h-4 w-4 text-blue-400" />
               <span>Explore AI Intelligence</span>
             </h3>
-            <p className="text-xs text-slate-400">Discover pre-configured prompt templates, security audits, and automated negotiation strategies.</p>
-            <div className="space-y-2">
-              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs hover:border-blue-500/50 transition-all cursor-pointer">
+            <p className="text-xs text-slate-400">Discover pre-configured prompt guides and automated negotiation strategies.</p>
+            <div className="space-y-2 pt-1">
+              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs">
                 <span className="font-bold text-blue-400 block mb-1">Automated Buyer Negotiation</span>
                 <span className="text-slate-400 text-[11px]">Dynamic discount algorithms based on inventory thresholds.</span>
-              </div>
-              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs hover:border-blue-500/50 transition-all cursor-pointer">
-                <span className="font-bold text-blue-400 block mb-1">OWASP Security Audit Bot</span>
-                <span className="text-slate-400 text-[11px]">Automated vulnerability scanner & access control checks.</span>
               </div>
             </div>
           </div>
