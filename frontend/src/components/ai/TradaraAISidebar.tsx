@@ -255,7 +255,7 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-y-0 right-0 z-50 w-full md:w-[480px] bg-[#0c0c10] border-l border-slate-800 shadow-2xl flex text-slate-100 font-sans animate-in slide-in-from-right duration-300">
+    <div className="fixed inset-y-0 right-0 z-50 w-full md:w-[480px] pt-16 md:pt-20 bg-[#0c0c10] border-l border-slate-800 shadow-2xl flex text-slate-100 font-sans animate-in slide-in-from-right duration-300">
       
       {/* Left Mini Icon Nav */}
       <div className="w-16 bg-[#070709] border-r border-slate-800/80 flex flex-col items-center py-4 justify-between select-none">
@@ -353,7 +353,7 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
 
         {/* Dynamic Tab Body */}
         {activeTab === 'chat' ? (
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 flex flex-col overflow-hidden pb-16 md:pb-0">
             
             {/* Search & New Chat Bar */}
             <div className="p-3 border-b border-slate-800/60 bg-slate-900/40 space-y-2.5">
@@ -497,7 +497,7 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
 
           </div>
         ) : activeTab === 'library' ? (
-          <div className="flex-1 p-6 space-y-4 overflow-y-auto">
+          <div className="flex-1 p-6 space-y-4 overflow-y-auto pb-20 md:pb-6">
             <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
               <ImageIcon className="h-4 w-4 text-blue-400" />
               <span>Library & Media Gallery</span>
@@ -515,7 +515,7 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
             </div>
           </div>
         ) : activeTab === 'projects' ? (
-          <div className="flex-1 p-6 space-y-4 overflow-y-auto">
+          <div className="flex-1 p-6 space-y-4 overflow-y-auto pb-20 md:pb-6">
             <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
               <FolderKanban className="h-4 w-4 text-blue-400" />
               <span>TRADARA Active Projects</span>
@@ -528,7 +528,7 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
             </div>
           </div>
         ) : (
-          <div className="flex-1 p-6 space-y-4 overflow-y-auto">
+          <div className="flex-1 p-6 space-y-4 overflow-y-auto pb-20 md:pb-6">
             <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
               <Compass className="h-4 w-4 text-blue-400" />
               <span>Explore AI Intelligence</span>
