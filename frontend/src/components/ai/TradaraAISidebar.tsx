@@ -318,15 +318,16 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
       {/* Main Drawer Content */}
       <div className="flex-1 flex flex-col h-full bg-[#0f0f13] overflow-hidden">
         
-        {/* Top Header Bar with Prominent Return (X) Button */}
-        <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-[#0f0f13]/90 backdrop-blur-md">
+        {/* Top Header Bar with Highly Visible Return (X) and Arrow Buttons */}
+        <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-[#0f0f13] sticky top-0 z-20 shadow-md">
           <div className="flex items-center gap-3">
             <button 
               onClick={onClose}
               title="Return to Marketplace"
-              className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition-all flex items-center justify-center shadow-sm"
+              className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition-all flex items-center gap-1.5 shadow-sm text-xs font-bold cursor-pointer"
             >
               <ArrowLeft className="h-4 w-4" />
+              <span>Back</span>
             </button>
             <div className="flex items-center gap-2.5">
               <div className="h-2.5 w-2.5 rounded-full bg-blue-500 animate-pulse" />
@@ -343,7 +344,7 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
           <button 
             onClick={onClose}
             title="Return to Marketplace (Close)"
-            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-rose-500/20 border border-slate-800 hover:border-rose-500/40 text-slate-300 hover:text-rose-400 transition-all flex items-center gap-1.5 shadow-sm text-xs font-semibold"
+            className="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 hover:text-rose-200 transition-all flex items-center gap-1.5 shadow-sm text-xs font-bold cursor-pointer"
           >
             <span>Return</span>
             <X className="h-4 w-4 text-rose-400 font-bold" />
