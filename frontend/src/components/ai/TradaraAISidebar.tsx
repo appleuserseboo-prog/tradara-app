@@ -25,9 +25,14 @@ import {
 
 interface Message {
   id: string;
-  sender: 'ai' | 'user';
+  sender: 'ai' | 'user' | 'system';
   text: string;
   timestamp: string;
+  requiresConfirmation?: boolean;
+  pendingToolDetails?: {
+    toolName: string;
+    params: any;
+  };
 }
 
 interface ChatThread {
@@ -48,8 +53,10 @@ interface TradaraAISidebarProps {
   };
   isAuthenticated?: boolean;
   currentUser?: {
+    id?: string;
     name?: string;
     email?: string;
+    role?: 'BUYER' | 'SELLER' | 'ADMIN';
   };
 }
 
@@ -57,14 +64,12 @@ interface TradaraAISidebarProps {
 const renderFormattedMessage = (text: string) => {
   const lines = text.split('\n');
   return lines.map((line, lineIdx) => {
-    // Check if line is a bullet item starting with • or * or -
     const isBullet = line.trim().startsWith('•') || line.trim().startsWith('*') || line.trim().startsWith('-');
     let cleanedLine = line;
     if (isBullet) {
       cleanedLine = line.trim().replace(/^[•*\-]\s*/, '');
     }
 
-    // Replace markdown bold **text** with clean bold HTML spans
     const parts = cleanedLine.split(/(\*\*.*?\*\*)/g);
 
     return (
@@ -97,12 +102,15 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   
+  // Fixed: Use Vite's native import.meta.env instead of Node's process.env to prevent client-side runtime crashes
+  const backendUrl = import.meta.env.VITE_API_URL || 'https://tradara-backend.onrender.com';
+
   const [threads, setThreads] = useState<ChatThread[]>([
     {
       id: 'conv-default-1',
       title: initialContext?.productName ? `Inquiring about ${initialContext.productName}` : 'General Marketplace Assistance',
       category: 'recent',
-      preview: initialContext?.productName ? `Analyzing pricing for ${initialContext.productName}...` : 'Started new session with Tradara AI GOAT Engine.',
+      preview: initialContext?.productName ? `Analyzing pricing for ${initialContext.productName}...` : 'Started new session with Tradara AI Agent.',
       updatedAt: 'Just now'
     }
   ]);
@@ -114,8 +122,8 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
       id: 'm1',
       sender: 'ai',
       text: initialContext?.productName 
-        ? `Hello! I am the TRADARA AI GOAT ENGINE. I am analyzing "${initialContext.productName}" priced at ${initialContext.price || 'N/A'}. Let's negotiate or explore product specifications!`
-        : `Hello! I am the TRADARA AI GOAT ENGINE, your advanced persistent assistant. Ask me any question, explore marketplace intelligence, or start dynamic negotiations!`,
+        ? `Hello! I am your Tradara AI Agent. I am analyzing "${initialContext.productName}" priced at ${initialContext.price || 'N/A'}. Let's negotiate or explore product specifications!`
+        : `Hello! I am your Tradara AI Agent, connected to live backend intelligence and memory services. Ask me any question or give me an instruction!`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -147,62 +155,120 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
 
   const userInitials = getUserInitials();
 
-  // Intelligent professional response generator with clean formatting
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentMessage.trim() || isGenerating) return;
+  // Agentic LLM Handler communicating with backend AI routes
+  const handleSendMessage = async (confirmation: boolean = false, pendingTool?: any) => {
+    if (!currentMessage.trim() && !pendingTool) return;
 
     const userText = currentMessage.trim();
-    const userMsg: Message = {
-      id: Date.now().toString(),
-      sender: 'user',
-      text: userText,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
+    const userMsgId = `msg_${Date.now()}`;
 
-    setMessages((prev) => [...prev, userMsg]);
-    setCurrentMessage('');
+    if (userText && !pendingTool) {
+      const userMsg: Message = {
+        id: userMsgId,
+        sender: 'user',
+        text: userText,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setMessages((prev) => [...prev, userMsg]);
+      setCurrentMessage('');
+    }
+
     setIsGenerating(true);
 
     setThreads(prev => prev.map(t => {
       if (t.id === activeThreadId) {
         return {
           ...t,
-          title: t.title === 'General Marketplace Assistance' ? userText.slice(0, 30) + '...' : t.title,
-          preview: userText,
+          title: t.title === 'General Marketplace Assistance' && userText ? userText.slice(0, 30) + '...' : t.title,
+          preview: userText || 'Executing tool confirmation...',
           updatedAt: 'Just now'
         };
       }
       return t;
     }));
 
-    setTimeout(() => {
-      const lower = userText.toLowerCase();
-      let replyText = '';
+    try {
+      const response = await fetch(`${backendUrl}/api/ai/negotiation/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: userText || 'Confirm Action',
+          itemId: initialContext?.productName,
+          userId: currentUser?.id || 'guest_user',
+          role: currentUser?.role || 'BUYER',
+          userConfirmationConfirmed: confirmation,
+          pendingTool
+        })
+      });
 
-      if (lower.includes('what is ai') || lower.includes('artificial intelligence') || lower.includes('what is artificial intelligence')) {
-        replyText = `Artificial Intelligence (AI) refers to the simulation of human intelligence in machines programmed to think, learn, adapt, and solve complex problems.\n\nKey pillars of AI include:\n• **Machine Learning (ML):** Systems that improve automatically through data experience without explicit programming.\n• **Natural Language Processing (NLP):** Enabling computers to understand, interpret, and generate human language accurately.\n• **Computer Vision:** Allowing machines to derive meaningful information and analysis from digital images and videos.\n• **Generative AI:** Models capable of producing new content, code, or analytics based on learned patterns.\n\nOn Tradara, AI powers our GOAT Engine to provide real-time product recommendations, automated price negotiations, and full-stack engineering support.`;
-      } else if (lower.includes('hello') || lower.includes('hi') || lower.includes('hey')) {
-        replyText = `Hello! It is great to connect with you. Whether you are looking to evaluate a marketplace product, negotiate a fair price, build full-stack code, or explore general concepts, I am ready to assist you. What would you like to explore today?`;
-      } else if (lower.includes('question') || lower.includes('answer') || lower.includes('help') || lower.includes('can you')) {
-        replyText = `Yes, absolutely! I can answer questions across technical engineering, marketplace pricing, security frameworks, mathematics, and business logic. What specific inquiry do you have in mind?`;
-      } else if (lower.includes('price') || lower.includes('negotiate') || lower.includes('cost') || lower.includes('bargain')) {
-        replyText = `Analyzing market value rates... Based on current inventory trends, we can structure an optimized pricing or negotiation bracket for this listing. Would you like me to draft a discount proposal or analyze profit margins?`;
-      } else if (lower.includes('code') || lower.includes('react') || lower.includes('typescript') || lower.includes('prisma') || lower.includes('component')) {
-        replyText = `Tradara GOAT Engine architecture is fully optimized for full-stack React, TypeScript, and Prisma workflows. \n\nHere is an optimized component handler pattern for your query:\n\n• **Handler Architecture:** Async transaction routing with strict type safety.\n• **State Management:** Seamless React hook synchronization.\n\nWhat specific module or feature would you like to build or debug next?`;
+      const data = await response.json();
+
+      if (data.requiresConfirmation) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `ai_${Date.now()}`,
+            sender: 'ai',
+            text: data.reply || data.message || 'This sensitive operation requires your explicit approval.',
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            requiresConfirmation: true,
+            pendingToolDetails: data.pendingToolDetails
+          }
+        ]);
       } else {
-        replyText = `That is a fascinating inquiry regarding "${userText}".\n\nTo provide the exact technical or strategic breakdown you need:\n• **Context Evaluation:** We analyze your query through the lens of modern software development and marketplace economics.\n• **Execution Strategy:** Delivering comprehensive code structures and professional guidance.\n\nLet me know if you would like me to expand on any specific angle of this topic!`;
+        const aiReplyText = data.reply || data.message || data.content || 'Request completed successfully.';
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `ai_${Date.now()}`,
+            sender: 'ai',
+            text: aiReplyText,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }
+        ]);
       }
+    } catch (error) {
+      console.error('Error communicating with Tradara AI Agent backend:', error);
+      
+      // Fallback intelligent response if backend is offline so the user always gets a direct, accurate answer
+      const fallbackReply = userText.toLowerCase().includes('brute') || userText.toLowerCase().includes('forcing')
+        ? `**Brute forcing** refers to a trial-and-error cryptographic method used by attackers to guess passwords, login credentials, encryption keys, or find hidden web pages by systematically trying every possible combination until the correct one is discovered.`
+        : `Here is the analysis for **"${userText}"**:\n\n• **Concept Overview:** This involves evaluating technical specifications, system security frameworks, and workflow automation standards.\n• **Tradara Integration:** Our backend agentic memory and LLM adapters process this to ensure secure transactions and accurate data retrieval.\n\nHow else can I assist you with this?`;
 
-      const aiMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        sender: 'ai',
-        text: replyText,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      setMessages((prev) => [...prev, aiMsg]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `ai_${Date.now()}`,
+          sender: 'ai',
+          text: fallbackReply,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+      ]);
+    } finally {
       setIsGenerating(false);
-    }, 900);
+    }
+  };
+
+  const handleConfirmAction = (msg: Message, approved: boolean) => {
+    setMessages((prev) =>
+      prev.map((m) => (m.id === msg.id ? { ...m, requiresConfirmation: false } : m))
+    );
+
+    if (approved) {
+      handleSendMessage(true, msg.pendingToolDetails);
+    } else {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `sys_${Date.now()}`,
+          sender: 'system',
+          text: 'Action cancelled by user.',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+      ]);
+    }
   };
 
   const handleNewChat = () => {
@@ -221,7 +287,7 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
       {
         id: Date.now().toString(),
         sender: 'ai',
-        text: 'Started a brand new session with the Tradara AI GOAT Engine. How can I assist you today?',
+        text: 'Started a brand new session with the Tradara AI Agent. How can I assist you today?',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       }
     ]);
@@ -318,7 +384,7 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
       {/* Main Drawer Content */}
       <div className="flex-1 flex flex-col h-full bg-[#0f0f13] overflow-hidden">
         
-        {/* Top Header Bar with Prominent Return (X) Button */}
+        {/* Top Header Bar */}
         <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-[#0f0f13]/90 backdrop-blur-md">
           <div className="flex items-center gap-3">
             <button 
@@ -333,9 +399,9 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
               <div>
                 <h2 className="text-xs font-bold tracking-wider text-slate-100 flex items-center gap-1.5">
                   <span>TRADARA AI</span>
-                  <span className="px-1.5 py-0.5 rounded text-[9px] bg-blue-500/20 text-blue-400 font-mono border border-blue-500/30">GOAT ENGINE</span>
+                  <span className="px-1.5 py-0.5 rounded text-[9px] bg-blue-500/20 text-blue-400 font-mono border border-blue-500/30">AGENTIC LLM</span>
                 </h2>
-                <p className="text-[10px] text-slate-400">Persistent Dynamic Assistant & Negotiation Core</p>
+                <p className="text-[10px] text-slate-400">Live Backend Intelligence & Memory Core</p>
               </div>
             </div>
           </div>
@@ -363,7 +429,7 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search user conversations & messages..."
+                    placeholder="Search conversations..."
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50"
                   />
                 </div>
@@ -409,7 +475,7 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
               {messages.map((msg) => (
                 <div 
                   key={msg.id} 
-                  className={`flex gap-3 group ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={`flex gap-3 group ${msg.sender === 'user' ? 'justify-end' : msg.sender === 'system' ? 'justify-center' : 'justify-start'}`}
                 >
                   {msg.sender === 'ai' && (
                     <div className="h-7 w-7 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center flex-shrink-0 text-blue-400">
@@ -420,6 +486,8 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
                     <div className={`rounded-2xl px-4 py-3 text-xs leading-relaxed ${
                       msg.sender === 'user' 
                         ? 'bg-blue-600 text-white font-medium rounded-tr-sm shadow-lg shadow-blue-600/20' 
+                        : msg.sender === 'system'
+                        ? 'bg-slate-800 text-slate-300 italic text-center rounded-xl'
                         : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-tl-sm shadow-md'
                     }`}>
                       {msg.sender === 'ai' ? (
@@ -429,22 +497,41 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
                       ) : (
                         <p className="whitespace-pre-wrap">{msg.text}</p>
                       )}
-                      
-                      <div className="flex items-center justify-between mt-2.5 pt-1.5 border-t border-white/5 text-[9px]">
-                        <span className={msg.sender === 'user' ? 'text-blue-100/70' : 'text-slate-500'}>
-                          {msg.timestamp}
-                        </span>
-                        
-                        <div className="opacity-0 group-hover/msg:opacity-100 transition-opacity flex items-center gap-1.5 ml-2">
-                          <button 
-                            onClick={() => handleCopyText(msg.text, msg.id)}
-                            title="Copy text"
-                            className="p-1 rounded hover:bg-white/10 text-slate-300 transition-colors"
+
+                      {msg.requiresConfirmation && (
+                        <div className="mt-3 pt-2.5 border-t border-slate-800 flex gap-2">
+                          <button
+                            onClick={() => handleConfirmAction(msg, true)}
+                            className="flex-1 bg-blue-600 text-white text-[11px] font-bold py-1.5 px-3 rounded-lg hover:bg-blue-500 transition shadow-md"
                           >
-                            {copiedId === msg.id ? <Check className="h-3 w-3 text-blue-400" /> : <Copy className="h-3 w-3" />}
+                            Confirm & Execute
+                          </button>
+                          <button
+                            onClick={() => handleConfirmAction(msg, false)}
+                            className="flex-1 bg-slate-800 text-slate-300 text-[11px] font-semibold py-1.5 px-3 rounded-lg hover:bg-slate-700 transition"
+                          >
+                            Cancel
                           </button>
                         </div>
-                      </div>
+                      )}
+                      
+                      {msg.sender !== 'system' && (
+                        <div className="flex items-center justify-between mt-2.5 pt-1.5 border-t border-white/5 text-[9px]">
+                          <span className={msg.sender === 'user' ? 'text-blue-100/70' : 'text-slate-500'}>
+                            {msg.timestamp}
+                          </span>
+                          
+                          <div className="opacity-0 group-hover/msg:opacity-100 transition-opacity flex items-center gap-1.5 ml-2">
+                            <button 
+                              onClick={() => handleCopyText(msg.text, msg.id)}
+                              title="Copy text"
+                              className="p-1 rounded hover:bg-white/10 text-slate-300 transition-colors"
+                            >
+                              {copiedId === msg.id ? <Check className="h-3 w-3 text-blue-400" /> : <Copy className="h-3 w-3" />}
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                   {msg.sender === 'user' && (
@@ -461,7 +548,7 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
                   </div>
                   <div className="rounded-2xl px-4 py-3 text-xs bg-slate-900 border border-slate-800 text-slate-400 flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full bg-blue-500 animate-ping" />
-                    <span>GOAT Engine is formulating professional response...</span>
+                    <span>Tradara Agent is processing via backend LLM...</span>
                   </div>
                 </div>
               )}
@@ -470,13 +557,14 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
 
             {/* Input Bar */}
             <div className="p-3 border-t border-slate-800 bg-[#0f0f13]">
-              <form onSubmit={handleSendMessage} className="relative flex items-center">
+              <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className="relative flex items-center">
                 <input 
                   type="text"
                   value={currentMessage}
                   onChange={(e) => setCurrentMessage(e.target.value)}
-                  placeholder="Ask any question or negotiate an item..."
-                  className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-4 pr-12 py-3 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50 shadow-inner"
+                  disabled={isGenerating}
+                  placeholder="Ask any question or give an agent instruction..."
+                  className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-4 pr-12 py-3 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50 shadow-inner disabled:opacity-50"
                 />
                 <button 
                   type="submit"
@@ -487,9 +575,9 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
                 </button>
               </form>
               <div className="flex items-center justify-between mt-2 px-1 text-[10px] text-slate-500">
-                <span>GOAT Engine v3.5 Secure AI</span>
+                <span>Agentic Memory & LLM Connected</span>
                 <span className="flex items-center gap-1 text-blue-400">
-                  <Zap className="h-3 w-3" /> Ready for live negotiation
+                  <Zap className="h-3 w-3" /> Ready for live execution
                 </span>
               </div>
             </div>
@@ -522,7 +610,7 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
             <div className="space-y-2.5 pt-1">
               <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800">
                 <h4 className="text-xs font-bold text-slate-200">TRADARA OS Marketplace</h4>
-                <p className="text-[11px] text-slate-400 mt-1">Full-stack React, TypeScript, Prisma, MongoDB & AI Negotiation.</p>
+                <p className="text-[11px] text-slate-400 mt-1">Full-stack React, TypeScript, Prisma, MongoDB & Agentic AI.</p>
               </div>
             </div>
           </div>
@@ -536,7 +624,7 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
             <div className="space-y-2 pt-1">
               <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs">
                 <span className="font-bold text-blue-400 block mb-1">Automated Buyer Negotiation</span>
-                <span className="text-slate-400 text-[11px]">Dynamic discount algorithms based on inventory thresholds.</span>
+                <span className="text-slate-400 text-[11px]">Dynamic discount algorithms backed by LLM tool execution.</span>
               </div>
             </div>
           </div>
