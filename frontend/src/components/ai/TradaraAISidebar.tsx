@@ -105,6 +105,16 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
   // Fixed: Use Vite's native import.meta.env instead of Node's process.env to prevent client-side runtime crashes
   const backendUrl = import.meta.env.VITE_API_URL || 'https://tradara-backend.onrender.com';
 
+  // Persistent buyerSession ID stored in localStorage so chat history matches the backend expectations
+  const [buyerSession] = useState<string>(() => {
+    let storedSession = localStorage.getItem('tradara_buyer_session');
+    if (!storedSession) {
+      storedSession = 'session_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+      localStorage.setItem('tradara_buyer_session', storedSession);
+    }
+    return storedSession;
+  });
+
   const [threads, setThreads] = useState<ChatThread[]>([
     {
       id: 'conv-default-1',
@@ -155,7 +165,7 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
 
   const userInitials = getUserInitials();
 
-  // Agentic LLM Handler communicating with backend AI routes
+  // Agentic LLM Handler communicating with backend AI routes matching backend controller expectations
   const handleSendMessage = async (confirmation: boolean = false, pendingTool?: any) => {
     if (!currentMessage.trim() && !pendingTool) return;
 
@@ -195,9 +205,9 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
         },
         body: JSON.stringify({
           message: userText || 'Confirm Action',
-          itemId: initialContext?.productName,
-          userId: currentUser?.id || 'guest_user',
-          role: currentUser?.role || 'BUYER',
+          itemId: initialContext?.productName || 'general-ai-session',
+          buyerSession: buyerSession,
+          buyerId: currentUser?.id || 'guest_user',
           userConfirmationConfirmed: confirmation,
           pendingTool
         })
@@ -205,31 +215,37 @@ export const TradaraAISidebar: React.FC<TradaraAISidebarProps> = ({
 
       const data = await response.json();
 
-      if (data.requiresConfirmation) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `ai_${Date.now()}`,
-            sender: 'ai',
-            text: data.reply || data.message || 'This sensitive operation requires your explicit approval.',
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            requiresConfirmation: true,
-            pendingToolDetails: data.pendingToolDetails
-          }
-        ]);
+      if (response.ok && data.success) {
+        const responseData = data.data || data;
+        
+        if (responseData.requiresConfirmation || data.requiresConfirmation) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `ai_${Date.now()}`,
+              sender: 'ai',
+              text: responseData.reply || responseData.message || data.reply || data.message || 'This sensitive operation requires your explicit approval.',
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              requiresConfirmation: true,
+              pendingToolDetails: responseData.pendingToolDetails || data.pendingToolDetails
+            }
+          ]);
+        } else {
+          const aiReplyText = responseData.reply || responseData.message || responseData.content || data.reply || data.message || data.content || 'Request completed successfully.';
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `ai_${Date.now()}`,
+              sender: 'ai',
+              text: aiReplyText,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            }
+          ]);
+        }
       } else {
-        const aiReplyText = data.reply || data.message || data.content || 'Request completed successfully.';
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `ai_${Date.now()}`,
-            sender: 'ai',
-            text: aiReplyText,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          }
-        ]);
+        throw new Error(data.error || 'Server responded with an error');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error communicating with Tradara AI Agent backend:', error);
       
       // Fallback intelligent response if backend is offline so the user always gets a direct, accurate answer
