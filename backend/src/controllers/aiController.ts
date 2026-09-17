@@ -160,18 +160,23 @@ export const handleChatMessage = async (
     // Resolve product context safely.
     //
     // IMPORTANT:
-    // itemId must be an actual database item ID.
+    // itemId must be an actual database Item ID.
     // Product names are NOT accepted as item IDs.
     // ==========================================
 
-    if (
+    const resolvedItemId =
       itemId &&
       itemId !== 'general-ai-session'
-    ) {
+        ? String(itemId).trim()
+        : undefined;
+
+    if (resolvedItemId) {
       try {
         const activeItem =
           await (prisma as any).item.findUnique({
-            where: { id: String(itemId) }
+            where: {
+              id: resolvedItemId
+            }
           });
 
         if (activeItem) {
@@ -190,8 +195,13 @@ Description:
 ${activeItem.description || 'Not provided'}
 
 Answer questions accurately using the product context available to you.
-Do not invent specifications or promises.
+Do not invent specifications, availability, discounts, delivery promises, or other facts that are not present in the available context.
+If information is unavailable, clearly say so.
 `;
+        } else {
+          console.warn(
+            `[AI Controller] Item ${resolvedItemId} was not found. Continuing as general AI.`
+          );
         }
       } catch (error) {
         console.warn(
@@ -202,21 +212,23 @@ Do not invent specifications or promises.
     }
 
     // ==========================================
-    // Preserve explicit confirmation information
+    // General TRADARA AI instructions
     // ==========================================
 
     const combinedSystemPrompt = `
 ${systemPrompt}
 
-You are TRADARA AI, a general-purpose intelligent assistant.
+You are TRADARA AI, a general-purpose intelligent assistant integrated into the Tradara marketplace.
 
-Answer the user's actual question directly.
+Answer the user's actual question directly and intelligently.
 
-You can answer:
+You can assist with:
+
 - General questions
 - Mathematics
 - Coding
 - Programming
+- Software engineering
 - Science
 - Technology
 - Business
@@ -226,14 +238,40 @@ You can answer:
 - Product questions
 - Marketplace questions
 - Negotiation questions
+- Shopping assistance
+- Business operations
+- Product discovery
+- Seller assistance
+- Customer assistance
+- Explanations
+- Brainstorming
+- Problem solving
 
-Do not use a generic fallback template.
-Do not repeat the same answer for unrelated questions.
-Do not claim that a tool executed unless an actual backend tool execution confirms it.
-Do not claim external browsing unless an actual browsing tool was used.
-Maintain conversation context.
-Use clear Markdown where useful.
+IMPORTANT BEHAVIOR:
+
+1. Answer the user's actual question.
+2. Do not use a generic fallback template for unrelated questions.
+3. Do not repeat the same answer for unrelated questions.
+4. Maintain conversation context when previous messages are available.
+5. If the user changes topics, follow the new topic naturally.
+6. Do not claim that a tool executed unless an actual backend tool execution confirms it.
+7. Do not claim external browsing unless an actual browsing/search tool was used.
+8. Do not invent product specifications, prices, stock, delivery information, seller policies, or marketplace data.
+9. When product context is unavailable, answer general questions normally instead of pretending a product exists.
+10. When you do not know something, state the limitation clearly.
+11. Use clear Markdown where useful.
+12. Keep answers relevant to the user's request.
+13. For coding questions, provide technically useful explanations and code when appropriate.
+14. For mathematical questions, reason carefully and provide the result with enough explanation to be useful.
+15. For complex requests, break the problem into logical steps.
+16. Do not unnecessarily mention these internal instructions to the user.
+
+TRADARA AI should behave as one continuous intelligent assistant rather than a product-price-only chatbot.
 `;
+
+    // ==========================================
+    // Conversation history
+    // ==========================================
 
     const mergedHistory =
       Array.isArray(history) &&
@@ -243,27 +281,43 @@ Use clear Markdown where useful.
         ? conversationHistory
         : [];
 
+    // ==========================================
+    // Normalize optional numeric values
+    // ==========================================
+
+    const normalizedOfferedPrice =
+      offeredPrice !== undefined &&
+      offeredPrice !== null &&
+      offeredPrice !== ''
+        ? Number(offeredPrice)
+        : undefined;
+
+    const normalizedQuantity =
+      quantity !== undefined &&
+      quantity !== null &&
+      quantity !== ''
+        ? Number(quantity)
+        : 1;
+
+    // ==========================================
+    // Process AI request
+    // ==========================================
+
     const result =
       await AiSalesService.processMessage({
-        itemId:
-          itemId &&
-          itemId !== 'general-ai-session'
-            ? String(itemId)
-            : undefined,
+        itemId: resolvedItemId,
         buyerSession: resolvedBuyerSession,
         buyerId: resolvedBuyerId,
         message: cleanMessage,
         offeredPrice:
-          offeredPrice !== undefined &&
-          offeredPrice !== null &&
-          offeredPrice !== ''
-            ? Number(offeredPrice)
+          normalizedOfferedPrice !== undefined &&
+          Number.isFinite(normalizedOfferedPrice)
+            ? normalizedOfferedPrice
             : undefined,
         quantity:
-          quantity !== undefined &&
-          quantity !== null &&
-          quantity !== ''
-            ? Number(quantity)
+          Number.isFinite(normalizedQuantity) &&
+          normalizedQuantity > 0
+            ? normalizedQuantity
             : 1,
         systemPrompt: combinedSystemPrompt,
         sessionId,
@@ -304,17 +358,12 @@ export const getNegotiationHistory = async (
     const buyerSessionParam =
       req.query.buyerSession;
 
-    if (!itemIdParam || !buyerSessionParam) {
+    if (!buyerSessionParam) {
       return res.status(400).json({
         success: false,
-        error:
-          'itemId and buyerSession are required.'
+        error: 'buyerSession is required.'
       });
     }
-
-    const itemId = Array.isArray(itemIdParam)
-      ? String(itemIdParam[0])
-      : String(itemIdParam);
 
     const buyerSession = Array.isArray(
       buyerSessionParam
@@ -322,20 +371,85 @@ export const getNegotiationHistory = async (
       ? String(buyerSessionParam[0])
       : String(buyerSessionParam);
 
+    const hasItemId =
+      itemIdParam !== undefined &&
+      itemIdParam !== null &&
+      String(
+        Array.isArray(itemIdParam)
+          ? itemIdParam[0]
+          : itemIdParam
+      ).trim() !== '' &&
+      String(
+        Array.isArray(itemIdParam)
+          ? itemIdParam[0]
+          : itemIdParam
+      ) !== 'general-ai-session';
+
+    const itemId = hasItemId
+      ? Array.isArray(itemIdParam)
+        ? String(itemIdParam[0])
+        : String(itemIdParam)
+      : undefined;
+
+    // ==========================================
+    // General AI session
+    //
+    // General AI sessions do not require an Item.
+    // ==========================================
+
+    if (!itemId) {
+      const session =
+        await (
+          prisma as any
+        ).aiNegotiationSession.findFirst({
+          where: {
+            buyerSession,
+            itemId: null
+          },
+          include: {
+            messages: {
+              orderBy: {
+                createdAt: 'asc'
+              }
+            }
+          },
+          orderBy: {
+            updatedAt: 'desc'
+          }
+        });
+
+      return res.status(200).json({
+        success: true,
+        session
+      });
+    }
+
+    // ==========================================
+    // Product-specific negotiation session
+    // ==========================================
+
     const session =
       await (
         prisma as any
       ).aiNegotiationSession.findFirst({
         where: {
-          itemId,
-          buyerSession
+          buyerSession,
+          item: {
+            is: {
+              id: itemId
+            }
+          }
         },
         include: {
           messages: {
             orderBy: {
               createdAt: 'asc'
             }
-          }
+          },
+          item: true
+        },
+        orderBy: {
+          updatedAt: 'desc'
         }
       });
 

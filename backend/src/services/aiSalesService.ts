@@ -703,33 +703,47 @@ export class AiSalesService {
     }
 
     if (!session) {
-      const title =
-        cleanMessage.length >
-        40
-          ? `${cleanMessage.substring(
-              0,
-              37
-            )}...`
-          : cleanMessage;
+      /*
+       * IMPORTANT:
+       * AiNegotiationSession does not have a "title" field in
+       * prisma/schema.prisma.
+       *
+       * The item relation is connected conditionally so that:
+       * - product conversations connect to the real Item record
+       * - general AI conversations do not require an Item
+       *
+       * This avoids sending itemId directly to create(), which can
+       * fail when the generated Prisma Client exposes the relation
+       * through the "item" nested create input.
+       */
+      const sessionData: any = {
+        buyerSession:
+          buyerSession ||
+          `anonymous_${Date.now()}`,
+        buyerId:
+          buyerId ||
+          null,
+        status:
+          'active'
+      };
+
+      if (
+        !isGeneralSession &&
+        dbItemId
+      ) {
+        sessionData.item = {
+          connect: {
+            id: dbItemId
+          }
+        };
+      }
 
       session =
         await (
           prisma as any
         ).aiNegotiationSession.create(
           {
-            data: {
-              itemId:
-                dbItemId,
-              buyerSession:
-                buyerSession ||
-                `anonymous_${Date.now()}`,
-              buyerId:
-                buyerId ||
-                null,
-              title,
-              status:
-                'active'
-            },
+            data: sessionData,
             include: {
               messages: true
             }
