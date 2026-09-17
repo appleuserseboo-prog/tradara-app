@@ -6,7 +6,14 @@ import prisma from '../lib/prisma';
 import { NegotiationEngine } from './negotiationEngine';
 import { GoogleGenAI } from '@google/genai';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.API_KEY });
+const apiKey =
+  process.env.GEMINI_API_KEY ||
+  process.env.API_KEY ||
+  '';
+
+const ai = new GoogleGenAI({
+  apiKey
+});
 
 export interface ProcessChatMessageInput {
   itemId?: string;
@@ -16,14 +23,45 @@ export interface ProcessChatMessageInput {
   offeredPrice?: number;
   quantity?: number;
   systemPrompt?: string;
-  sessionId?: string; // Optional direct session thread routing parameter
+  sessionId?: string;
+  history?: Array<{
+    role:
+      | 'user'
+      | 'model'
+      | 'assistant';
+    parts?: Array<{
+      text: string;
+    }>;
+    content?: string;
+    message?: string;
+  }>;
+  userConfirmationConfirmed?: boolean;
+  pendingTool?: any;
 }
 
 export interface BuyerPerception {
-  sentiment: 'positive' | 'neutral' | 'negative' | 'frustrated' | 'eager';
-  urgency: 'low' | 'medium' | 'high';
-  priceSensitivity: 'low' | 'medium' | 'high';
-  detectedIntent: 'inquiry' | 'bargain' | 'specs_check' | 'human_request' | 'bulk_inquiry' | 'closing' | 'general';
+  sentiment:
+    | 'positive'
+    | 'neutral'
+    | 'negative'
+    | 'frustrated'
+    | 'eager';
+  urgency:
+    | 'low'
+    | 'medium'
+    | 'high';
+  priceSensitivity:
+    | 'low'
+    | 'medium'
+    | 'high';
+  detectedIntent:
+    | 'inquiry'
+    | 'bargain'
+    | 'specs_check'
+    | 'human_request'
+    | 'bulk_inquiry'
+    | 'closing'
+    | 'general';
   estimatedMaxBudget?: number;
 }
 
@@ -37,79 +75,148 @@ export interface MarketplaceIntelligence {
 
 export class AiSalesService {
   /**
-   * Helper function to sanitize AI responses and remove distracting markdown artifacts (e.g. stray asterisks)
+   * Helper function to sanitize AI responses without destroying
+   * legitimate Markdown structure.
    */
-  private static sanitizeMarkdownOutput(text: string): string {
-    if (!text) return '';
-    
-    let sanitized = text;
-    
-    // Remove isolated stray asterisks or broken markdown bullets
-    sanitized = sanitized.replace(/^\s*\*\s*$/gm, '');
-    
-    // Clean up excessive markdown wrapping if it looks artifact-heavy, but preserve structural formatting
-    // Ensure no dangling bold markers without closing partners
-    const unclosedBoldRegex = /\*\*(?!.*?\*\*)/g;
-    if (unclosedBoldRegex.test(sanitized)) {
-      sanitized = sanitized.replace(/\*\*/g, '');
+  private static sanitizeMarkdownOutput(
+    text: string
+  ): string {
+    if (!text) {
+      return '';
     }
+
+    let sanitized = text
+      .replace(/\r\n/g, '\n')
+      .replace(/\u0000/g, '');
+
+    sanitized = sanitized.replace(
+      /^\s*[*]\s*$/gm,
+      ''
+    );
+
+    sanitized = sanitized.replace(
+      /\n{4,}/g,
+      '\n\n\n'
+    );
 
     return sanitized.trim();
   }
 
   /**
-   * Perception Module: Analyzes raw message text to evaluate buyer sentiment, urgency, intent, and price sensitivity.
+   * Perception Module.
+   *
+   * This is used for commerce intelligence and negotiation behavior.
+   * It is NOT used as the gatekeeper for general AI questions.
    */
-  private static perceiveBuyerIntent(message: string, offeredPrice?: number, listPrice: number = 0): BuyerPerception {
-    const msgLower = message.toLowerCase().trim();
-    
-    // Default perception baseline
-    let sentiment: BuyerPerception['sentiment'] = 'neutral';
-    let urgency: BuyerPerception['urgency'] = 'medium';
-    let priceSensitivity: BuyerPerception['priceSensitivity'] = 'medium';
-    let detectedIntent: BuyerPerception['detectedIntent'] = 'inquiry';
+  private static perceiveBuyerIntent(
+    message: string,
+    offeredPrice?: number,
+    listPrice: number = 0
+  ): BuyerPerception {
+    const msgLower =
+      message.toLowerCase().trim();
 
-    // General query, greeting, math, or coding detection
-    const isGeneralQuery = 
-      /^(2\s*\+\s*2|hello\b|hi\b|hey\b|code\b|python\b|javascript\b|typescript\b|function\b|how\s+are\s+you|what\s+is\s+your\s+name|help|write\s+a\s+code)/i.test(msgLower) ||
-      /\b(solve|write code|debug|explain code|javascript|python|react|typescript|algorithm|math|2\s*\+\s*2)\b/i.test(msgLower);
+    let sentiment: BuyerPerception['sentiment'] =
+      'neutral';
 
-    if (isGeneralQuery && !offeredPrice) {
-      detectedIntent = 'general';
-    } else {
-      // Sentiment and Urgency Perception
-      if (msgLower.includes('urgent') || msgLower.includes('today') || msgLower.includes('now') || msgLower.includes('asap') || msgLower.includes('fast')) {
-        urgency = 'high';
-        sentiment = 'eager';
-      }
-      if (msgLower.includes('expensive') || msgLower.includes('too high') || msgLower.includes('ridiculous') || msgLower.includes('scam')) {
-        sentiment = 'frustrated';
-        priceSensitivity = 'high';
-      } else if (msgLower.includes('love') || msgLower.includes('great') || msgLower.includes('perfect') || msgLower.includes('interested')) {
-        sentiment = 'positive';
-      }
+    let urgency: BuyerPerception['urgency'] =
+      'medium';
 
-      // Intent Perception
-      if (offeredPrice || msgLower.includes('bottom') || msgLower.includes('negotiable') || msgLower.includes('last price') || msgLower.includes('discount') || msgLower.includes('cheaper') || msgLower.includes('how much')) {
-        detectedIntent = 'bargain';
-        priceSensitivity = 'high';
-      } else if (msgLower.includes('spec') || msgLower.includes('condition') || msgLower.includes('warranty') || msgLower.includes('authentic') || msgLower.includes('original') || msgLower.includes('location') || msgLower.includes('city') || msgLower.includes('area')) {
-        detectedIntent = 'specs_check';
-      } else if (msgLower.includes('wholesale') || msgLower.includes('bulk') || msgLower.includes('quantity') || msgLower.includes('many')) {
-        detectedIntent = 'bulk_inquiry';
-      } else if (msgLower.includes('human') || msgLower.includes('agent') || msgLower.includes('call') || msgLower.includes('seller') || msgLower.includes('person')) {
-        detectedIntent = 'human_request';
-      } else if (msgLower.includes('buy') || msgLower.includes('take it') || msgLower.includes('deal') || msgLower.includes('account') || msgLower.includes('pay')) {
-        detectedIntent = 'closing';
-        urgency = 'high';
-      }
+    let priceSensitivity: BuyerPerception['priceSensitivity'] =
+      'medium';
+
+    let detectedIntent: BuyerPerception['detectedIntent'] =
+      'inquiry';
+
+    if (
+      /\b(urgent|today|now|asap|fast|quickly)\b/i.test(
+        msgLower
+      )
+    ) {
+      urgency = 'high';
+      sentiment = 'eager';
     }
 
-    let estimatedMaxBudget: number | undefined;
-    if (offeredPrice) {
-      estimatedMaxBudget = offeredPrice;
-    } else if (listPrice > 0 && priceSensitivity === 'high') {
-      estimatedMaxBudget = listPrice * 0.85;
+    if (
+      /\b(expensive|too high|ridiculous|scam|unreasonable)\b/i.test(
+        msgLower
+      )
+    ) {
+      sentiment = 'frustrated';
+      priceSensitivity = 'high';
+    } else if (
+      /\b(love|great|perfect|interested|nice|beautiful)\b/i.test(
+        msgLower
+      )
+    ) {
+      sentiment = 'positive';
+    } else if (
+      /\b(hate|bad|terrible|disappointed)\b/i.test(
+        msgLower
+      )
+    ) {
+      sentiment = 'negative';
+    }
+
+    if (
+      offeredPrice !== undefined ||
+      /\b(bottom|negotiable|last price|discount|cheaper|reduce|offer|how much|price)\b/i.test(
+        msgLower
+      )
+    ) {
+      detectedIntent = 'bargain';
+      priceSensitivity = 'high';
+    } else if (
+      /\b(spec|specs|condition|warranty|authentic|original|location|city|area|features)\b/i.test(
+        msgLower
+      )
+    ) {
+      detectedIntent =
+        'specs_check';
+    } else if (
+      /\b(wholesale|bulk|quantity|many units|large order)\b/i.test(
+        msgLower
+      )
+    ) {
+      detectedIntent =
+        'bulk_inquiry';
+    } else if (
+      /\b(human|agent|call|seller|person|representative)\b/i.test(
+        msgLower
+      )
+    ) {
+      detectedIntent =
+        'human_request';
+    } else if (
+      /\b(buy|take it|deal|pay|checkout|purchase)\b/i.test(
+        msgLower
+      )
+    ) {
+      detectedIntent =
+        'closing';
+
+      urgency = 'high';
+    } else {
+      detectedIntent =
+        'general';
+    }
+
+    let estimatedMaxBudget:
+      | number
+      | undefined;
+
+    if (
+      offeredPrice !== undefined
+    ) {
+      estimatedMaxBudget =
+        offeredPrice;
+    } else if (
+      listPrice > 0 &&
+      priceSensitivity ===
+        'high'
+    ) {
+      estimatedMaxBudget =
+        listPrice * 0.85;
     }
 
     return {
@@ -117,78 +224,145 @@ export class AiSalesService {
       urgency,
       priceSensitivity,
       detectedIntent,
-      estimatedMaxBudget,
+      estimatedMaxBudget
     };
   }
 
   /**
-   * Intelligence & Perception Engine: Retrieves historical cross-session marketplace data to adjust negotiation dynamic behavior.
+   * Retrieve marketplace intelligence.
    */
-  private static async gatherMarketplaceIntelligence(itemId?: string, buyerId?: string): Promise<MarketplaceIntelligence> {
+  private static async gatherMarketplaceIntelligence(
+    itemId?: string,
+    buyerId?: string
+  ): Promise<MarketplaceIntelligence> {
     try {
-      // Return default intelligence baseline for non-item general sessions to prevent database lookup failures
-      if (!itemId || itemId === 'general-ai-session') {
+      if (
+        !itemId ||
+        itemId ===
+          'general-ai-session'
+      ) {
         return {
           itemHistoricalConversions: 0,
           averageAgreedDiscountPercent: 0,
           buyerPastNegotiationCount: 0,
           buyerSuccessfulDeals: 0,
-          categoryDemandScore: 0.5,
+          categoryDemandScore: 0.5
         };
       }
 
-      // 1. Fetch historical conversion statistics for this item
-      const itemPastSessions = await (prisma as any).aiNegotiationSession.findMany({
-        where: { itemId, status: 'agreed' },
-        take: 20,
-      });
-
-      const itemHistoricalConversions = itemPastSessions.length;
-      
-      let averageAgreedDiscountPercent = 0;
-      if (itemHistoricalConversions > 0) {
-        const totalDiscounts = itemPastSessions.reduce((acc: number, s: any) => {
-          if (s.agreedPrice && s.currentOffer) {
-            return acc + ((s.currentOffer - s.agreedPrice) / s.currentOffer);
+      const itemPastSessions =
+        await (
+          prisma as any
+        ).aiNegotiationSession.findMany(
+          {
+            where: {
+              itemId,
+              status: 'agreed'
+            },
+            take: 100
           }
-          return acc;
-        }, 0);
-        averageAgreedDiscountPercent = (totalDiscounts / itemHistoricalConversions) * 100;
+        );
+
+      const itemHistoricalConversions =
+        itemPastSessions.length;
+
+      let averageAgreedDiscountPercent = 0;
+
+      if (
+        itemHistoricalConversions >
+        0
+      ) {
+        const totalDiscounts =
+          itemPastSessions.reduce(
+            (
+              acc: number,
+              session: any
+            ) => {
+              if (
+                session.agreedPrice &&
+                session.currentOffer &&
+                session.currentOffer > 0
+              ) {
+                return (
+                  acc +
+                  ((session.currentOffer -
+                    session.agreedPrice) /
+                    session.currentOffer)
+                );
+              }
+
+              return acc;
+            },
+            0
+          );
+
+        averageAgreedDiscountPercent =
+          (totalDiscounts /
+            itemHistoricalConversions) *
+          100;
       }
 
-      // 2. Fetch past buyer behavior if authenticated
       let buyerPastNegotiationCount = 0;
       let buyerSuccessfulDeals = 0;
 
       if (buyerId) {
-        const buyerSessions = await (prisma as any).aiNegotiationSession.findMany({
-          where: { buyerId },
-        });
-        buyerPastNegotiationCount = buyerSessions.length;
-        buyerSuccessfulDeals = buyerSessions.filter((s: any) => s.status === 'agreed').length;
+        const buyerSessions =
+          await (
+            prisma as any
+          ).aiNegotiationSession.findMany(
+            {
+              where: {
+                buyerId
+              },
+              take: 200
+            }
+          );
+
+        buyerPastNegotiationCount =
+          buyerSessions.length;
+
+        buyerSuccessfulDeals =
+          buyerSessions.filter(
+            (session: any) =>
+              session.status ===
+              'agreed'
+          ).length;
       }
 
       return {
         itemHistoricalConversions,
-        averageAgreedDiscountPercent: Number(averageAgreedDiscountPercent.toFixed(2)),
+        averageAgreedDiscountPercent:
+          Number(
+            averageAgreedDiscountPercent.toFixed(
+              2
+            )
+          ),
         buyerPastNegotiationCount,
         buyerSuccessfulDeals,
-        categoryDemandScore: itemHistoricalConversions > 10 ? 0.9 : 0.5,
+        categoryDemandScore:
+          itemHistoricalConversions >
+          10
+            ? 0.9
+            : 0.5
       };
     } catch (error) {
-      console.error('Error gathering marketplace intelligence:', error);
+      console.error(
+        'Error gathering marketplace intelligence:',
+        error
+      );
+
       return {
         itemHistoricalConversions: 0,
         averageAgreedDiscountPercent: 0,
         buyerPastNegotiationCount: 0,
         buyerSuccessfulDeals: 0,
-        categoryDemandScore: 0.5,
+        categoryDemandScore: 0.5
       };
     }
   }
 
   /**
-   * Learning Loop Engine: Continuous post-interaction hook that records message patterns, outcomes, and perception states for offline model fine-tuning.
+   * Learning Loop Engine.
    */
   private static async recordInteractionLearning(
     sessionId: string,
@@ -198,383 +372,849 @@ export class AiSalesService {
     dealStatus: string
   ): Promise<void> {
     try {
-      // Save continuous interaction record with cognitive analytics metadata
-      if ((prisma as any).aiLearningLog) {
-        await (prisma as any).aiLearningLog.create({
+      if (
+        (prisma as any)
+          .aiLearningLog
+      ) {
+        await (
+          prisma as any
+        ).aiLearningLog.create({
           data: {
             sessionId,
             buyerMessage,
             aiResponse,
-            perceivedSentiment: perception.sentiment,
-            perceivedUrgency: perception.urgency,
-            detectedIntent: perception.detectedIntent,
+            perceivedSentiment:
+              perception.sentiment,
+            perceivedUrgency:
+              perception.urgency,
+            detectedIntent:
+              perception.detectedIntent,
             dealStatus,
-            timestamp: new Date(),
-          },
+            timestamp: new Date()
+          }
         });
       }
     } catch (error) {
-      // Non-blocking log persistence error handler
-      console.warn('Learning log persistence bypassed:', error);
+      console.warn(
+        'Learning log persistence bypassed:',
+        error
+      );
     }
   }
 
   /**
-   * Helper function to try generating content with fallback models starting with the updated model first
+   * Generate content with a conservative model fallback.
+   *
+   * Do not list models that may not exist. The primary model can
+   * be changed with GEMINI_MODEL without changing application code.
    */
-  private static async generateWithModelFallback(params: {
-    contents: any;
-    config?: any;
-  }) {
-    const modelsToTry = ['gemini-2.5-flash', 'gemini-3.6-flash'];
+  private static async generateWithModelFallback(
+    params: {
+      contents: any;
+      config?: any;
+    }
+  ) {
+    const configuredModel =
+      process.env.GEMINI_MODEL ||
+      'gemini-2.5-flash';
+
+    const modelsToTry = [
+      configuredModel,
+      ...(configuredModel !==
+      'gemini-2.5-flash'
+        ? ['gemini-2.5-flash']
+        : [])
+    ];
+
     let lastError: any;
 
     for (const modelName of modelsToTry) {
       try {
-        const response = await ai.models.generateContent({
-          model: modelName,
-          contents: params.contents,
-          config: params.config,
-        });
-        return response;
-      } catch (err: any) {
-        console.warn(`[Gemini Model Warning] Model ${modelName} failed:`, err.message || err);
-        lastError = err;
+        return await ai.models.generateContent(
+          {
+            model: modelName,
+            contents:
+              params.contents,
+            config:
+              params.config
+          }
+        );
+      } catch (error: any) {
+        console.warn(
+          `[Gemini Model Warning] ${modelName} failed:`,
+          error?.message ||
+            error
+        );
+
+        lastError = error;
       }
     }
-    throw lastError;
+
+    throw (
+      lastError ||
+      new Error(
+        'No Gemini model could generate a response.'
+      )
+    );
   }
 
-  public static async processMessage(input: ProcessChatMessageInput) {
-    const { itemId, buyerSession, buyerId, message, offeredPrice, quantity = 1, systemPrompt: customSystemPrompt, sessionId: explicitSessionId } = input;
+  /**
+   * Build a robust conversation transcript.
+   */
+  private static buildConversationContext(
+    databaseMessages: any[] = [],
+    suppliedHistory: ProcessChatMessageInput['history'] =
+      []
+  ): string {
+    const normalized = [
+      ...suppliedHistory.map(
+        (item: any) => ({
+          role:
+            item.role ===
+              'assistant' ||
+            item.role ===
+              'model'
+              ? 'ASSISTANT'
+              : 'USER',
+          text:
+            item.parts
+              ?.map(
+                (part: any) =>
+                  part.text
+              )
+              .join('') ||
+            item.content ||
+            item.message ||
+            ''
+        })
+      ),
+      ...databaseMessages.map(
+        (item: any) => ({
+          role:
+            item.sender === 'ai' ||
+            item.role ===
+              'assistant' ||
+            item.role ===
+              'model'
+              ? 'ASSISTANT'
+              : 'USER',
+          text:
+            item.message ||
+            item.content ||
+            ''
+        })
+      )
+    ];
 
-    // 1. Fetch Item & AI Configuration (Optional for general AI chat sessions)
-    const isGeneralSession = !itemId || itemId === 'general-ai-session';
+    const deduplicated: Array<{
+      role: string;
+      text: string;
+    }> = [];
+
+    for (const item of normalized) {
+      if (!item.text.trim()) {
+        continue;
+      }
+
+      const previous =
+        deduplicated[
+          deduplicated.length -
+            1
+        ];
+
+      if (
+        previous &&
+        previous.role ===
+          item.role &&
+        previous.text ===
+          item.text
+      ) {
+        continue;
+      }
+
+      deduplicated.push(
+        item
+      );
+    }
+
+    return deduplicated
+      .slice(-20)
+      .map(
+        (item) =>
+          `${item.role}: ${item.text}`
+      )
+      .join('\n');
+  }
+
+  /**
+   * Process a Tradara AI interaction.
+   */
+  public static async processMessage(
+    input: ProcessChatMessageInput
+  ) {
+    const {
+      itemId,
+      buyerSession,
+      buyerId,
+      message,
+      offeredPrice,
+      quantity = 1,
+      systemPrompt:
+        customSystemPrompt,
+      sessionId:
+        explicitSessionId,
+      history = []
+    } = input;
+
+    const cleanMessage =
+      String(
+        message || ''
+      ).trim();
+
+    if (!cleanMessage) {
+      throw new Error(
+        'Message cannot be empty.'
+      );
+    }
+
+    const isGeneralSession =
+      !itemId ||
+      itemId ===
+        'general-ai-session';
+
     let item: any = null;
 
     if (!isGeneralSession) {
       try {
-        item = await (prisma as any).item.findUnique({
-          where: { id: itemId },
-          include: { aiConfig: true, seller: true },
-        });
-      } catch (err) {
-        console.warn('Item lookup bypassed due to invalid format or missing item:', err);
+        item =
+          await (
+            prisma as any
+          ).item.findUnique({
+            where: {
+              id: itemId
+            },
+            include: {
+              aiConfig: true,
+              seller: true
+            }
+          });
+      } catch (error) {
+        console.warn(
+          'Item lookup failed:',
+          error
+        );
       }
     }
 
-    // 2. Find or Create Negotiation Session supporting server-side login sync & explicit thread routing
-    const dbItemId = isGeneralSession ? null : itemId;
+    const dbItemId =
+      isGeneralSession
+        ? null
+        : itemId;
 
     let session: any = null;
+
     if (explicitSessionId) {
-      session = await (prisma as any).aiNegotiationSession.findUnique({
-        where: { id: explicitSessionId },
-        include: { messages: { orderBy: { createdAt: 'asc' } } },
-      });
+      try {
+        session =
+          await (
+            prisma as any
+          ).aiNegotiationSession.findUnique(
+            {
+              where: {
+                id: explicitSessionId
+              },
+              include: {
+                messages: {
+                  orderBy: {
+                    createdAt:
+                      'asc'
+                  }
+                }
+              }
+            }
+          );
+      } catch {
+        session = null;
+      }
+    }
+
+    if (!session && buyerId) {
+      try {
+        session =
+          await (
+            prisma as any
+          ).aiNegotiationSession.findFirst(
+            {
+              where: {
+                buyerId,
+                itemId: dbItemId,
+                status: 'active'
+              },
+              orderBy: {
+                updatedAt:
+                  'desc'
+              },
+              include: {
+                messages: {
+                  orderBy: {
+                    createdAt:
+                      'asc'
+                  }
+                }
+              }
+            }
+          );
+      } catch {
+        session = null;
+      }
+    }
+
+    if (
+      !session &&
+      buyerSession
+    ) {
+      try {
+        session =
+          await (
+            prisma as any
+          ).aiNegotiationSession.findFirst(
+            {
+              where: {
+                buyerSession,
+                itemId: dbItemId
+              },
+              orderBy: {
+                updatedAt:
+                  'desc'
+              },
+              include: {
+                messages: {
+                  orderBy: {
+                    createdAt:
+                      'asc'
+                  }
+                }
+              }
+            }
+          );
+      } catch {
+        session = null;
+      }
     }
 
     if (!session) {
-      if (buyerId) {
-        session = await (prisma as any).aiNegotiationSession.findFirst({
-          where: { buyerId, itemId: dbItemId, status: 'active' },
-          orderBy: { updatedAt: 'desc' },
-          include: { messages: { orderBy: { createdAt: 'asc' } } },
-        });
-      }
-      if (!session) {
-        session = await (prisma as any).aiNegotiationSession.findFirst({
-          where: { buyerSession, itemId: dbItemId },
-          include: { messages: { orderBy: { createdAt: 'asc' } } },
-        });
-      }
+      const title =
+        cleanMessage.length >
+        40
+          ? `${cleanMessage.substring(
+              0,
+              37
+            )}...`
+          : cleanMessage;
+
+      session =
+        await (
+          prisma as any
+        ).aiNegotiationSession.create(
+          {
+            data: {
+              itemId:
+                dbItemId,
+              buyerSession:
+                buyerSession ||
+                `anonymous_${Date.now()}`,
+              buyerId:
+                buyerId ||
+                null,
+              title,
+              status:
+                'active'
+            },
+            include: {
+              messages: true
+            }
+          }
+        );
+    } else if (
+      buyerId &&
+      !session.buyerId
+    ) {
+      await (
+        prisma as any
+      ).aiNegotiationSession.update(
+        {
+          where: {
+            id: session.id
+          },
+          data: {
+            buyerId
+          }
+        }
+      );
     }
 
-    if (!session) {
-      // Auto-generate initial thread title from the first query string
-      const title = message.length > 30 ? message.substring(0, 27) + '...' : message;
-      session = await (prisma as any).aiNegotiationSession.create({
-        data: {
-          itemId: dbItemId,
-          buyerSession,
-          buyerId: buyerId || null,
-          title,
-          status: 'active',
-        },
-        include: { messages: true },
-      });
-    } else if (buyerId && !session.buyerId) {
-      // Backfill buyerId if user was guest and later authenticated
-      await (prisma as any).aiNegotiationSession.update({
-        where: { id: session.id },
-        data: { buyerId },
-      });
-    }
+    const perception =
+      this.perceiveBuyerIntent(
+        cleanMessage,
+        offeredPrice,
+        item?.price || 0
+      );
 
-    // 3. Cognitive Perception Layer: Run intent classification and gather historic cross-session data
-    const perception = this.perceiveBuyerIntent(message, offeredPrice, item?.price || 0);
-    const intelligence = await this.gatherMarketplaceIntelligence(itemId, buyerId);
+    const intelligence =
+      await this.gatherMarketplaceIntelligence(
+        itemId,
+        buyerId
+      );
 
-    // 4. Store Buyer's incoming message
-    await (prisma as any).aiChatMessage.create({
+    await (
+      prisma as any
+    ).aiChatMessage.create({
       data: {
-        sessionId: session.id,
+        sessionId:
+          session.id,
         sender: 'buyer',
-        message,
-        offerMade: offeredPrice || null,
-      },
+        message:
+          cleanMessage,
+        offerMade:
+          offeredPrice !==
+          undefined
+            ? offeredPrice
+            : null
+      }
     });
 
-    // 5. CHECK IF TRANSFERRED TO HUMAN AGENT (BYPASS AI)
-    if (session.status === 'transferred' || session.status === 'human_agent') {
-      const waitReply = "A live agent has received your message and will respond shortly.";
+    if (
+      session.status ===
+        'transferred' ||
+      session.status ===
+        'human_agent'
+    ) {
+      const waitReply =
+        'A live agent has received your message and will respond shortly.';
 
-      const aiMessage = await (prisma as any).aiChatMessage.create({
-        data: {
-          sessionId: session.id,
-          sender: 'system',
-          message: waitReply,
-        },
-      });
+      const aiMessage =
+        await (
+          prisma as any
+        ).aiChatMessage.create({
+          data: {
+            sessionId:
+              session.id,
+            sender:
+              'system',
+            message:
+              waitReply
+          }
+        });
 
       return {
-        sessionId: session.id,
-        reply: waitReply,
-        status: session.status,
-        agreedPrice: session.agreedPrice,
+        sessionId:
+          session.id,
+        reply:
+          waitReply,
+        status:
+          session.status,
+        agreedPrice:
+          session.agreedPrice,
         aiMessage,
         perception,
-        intelligence,
+        intelligence
       };
     }
 
-    const currentRound = session.roundCount + 1;
+    const currentRound =
+      (session.roundCount ||
+        0) + 1;
+
     let rawAiReply = '';
-    let dealStatus = session.status;
-    let agreedPrice = session.agreedPrice;
 
-    // Check if AI negotiation is configured and enabled for this item
-    const isAutoNegotiateActive = Boolean(item && item.aiConfig && item.aiConfig.autoNegotiateEnabled);
+    let dealStatus =
+      session.status ||
+      'active';
 
-    // SCENARIO 1: Buyer submitted a structured numeric offer on an active item
-    if (offeredPrice && item) {
-      if (!isAutoNegotiateActive) {
-        // No AI config or auto-negotiate disabled -> Cannot auto-accept discounts
-        rawAiReply = `Thank you for your offer of ${item.currency || '₦'}${offeredPrice.toLocaleString()}. This item has a fixed price of ${item.currency || '₦'}${item.price.toLocaleString()}. If you would like to negotiate further, please request to connect with a human agent.`;
+    let agreedPrice =
+      session.agreedPrice;
+
+    const isAutoNegotiateActive =
+      Boolean(
+        item &&
+          item.aiConfig &&
+          item.aiConfig
+            .autoNegotiateEnabled
+      );
+
+    // ==========================================
+    // Structured Product Offer
+    // ==========================================
+
+    if (
+      offeredPrice !==
+        undefined &&
+      item
+    ) {
+      if (
+        !isAutoNegotiateActive
+      ) {
+        rawAiReply =
+          `Thank you for your offer of ${
+            item.currency ||
+            '₦'
+          }${offeredPrice.toLocaleString()}. This item is currently listed at ${
+            item.currency ||
+            '₦'
+          }${Number(
+            item.price
+          ).toLocaleString()}. The seller's automated negotiation is not enabled, so I cannot approve a discount automatically.`;
       } else {
-        const result = NegotiationEngine.processOffer(offeredPrice, currentRound, {
-          minimumPrice: item.aiConfig.minimumPrice || item.price,
-          targetPrice: item.aiConfig.targetPrice || item.price,
-          walkawayPrice: item.aiConfig.walkawayPrice || item.aiConfig.minimumPrice || item.price,
-          discountStepPercent: item.aiConfig.discountStepPercent ?? 5,
-          maxDiscountRounds: item.aiConfig.maxDiscountRounds ?? 3,
-          autoNegotiateEnabled: item.aiConfig.autoNegotiateEnabled,
-          bulkMinQuantity: item.aiConfig.bulkMinQuantity || 0,
-          bulkDiscountPercent: item.aiConfig.bulkDiscountPercent || 0,
-          requestedQuantity: quantity,
-        });
+        const result =
+          NegotiationEngine.processOffer(
+            offeredPrice,
+            currentRound,
+            {
+              minimumPrice:
+                item.aiConfig
+                  .minimumPrice ||
+                item.price,
+              targetPrice:
+                item.aiConfig
+                  .targetPrice ||
+                item.price,
+              walkawayPrice:
+                item.aiConfig
+                  .walkawayPrice ||
+                item.aiConfig
+                  .minimumPrice ||
+                item.price,
+              discountStepPercent:
+                item.aiConfig
+                  .discountStepPercent ??
+                5,
+              maxDiscountRounds:
+                item.aiConfig
+                  .maxDiscountRounds ??
+                3,
+              autoNegotiateEnabled:
+                item.aiConfig
+                  .autoNegotiateEnabled,
+              bulkMinQuantity:
+                item.aiConfig
+                  .bulkMinQuantity ||
+                0,
+              bulkDiscountPercent:
+                item.aiConfig
+                  .bulkDiscountPercent ||
+                0,
+              requestedQuantity:
+                quantity
+            }
+          );
 
-        dealStatus = result.status;
+        dealStatus =
+          result.status;
 
         if (result.accepted) {
-          agreedPrice = offeredPrice;
-          rawAiReply = `Great news! I can accept your offer of ${item.currency || '₦'}${offeredPrice.toLocaleString()} per unit for ${quantity} unit(s). Would you like to proceed with this purchase?`;
-        } else if (result.counterOffer) {
-          rawAiReply = `Thank you for your offer. The best price we can offer right now is ${item.currency || '₦'}${result.counterOffer.toLocaleString()} per unit. Let me know if that works for you!`;
+          agreedPrice =
+            offeredPrice;
+
+          rawAiReply =
+            `Great news! I can accept your offer of ${
+              item.currency ||
+              '₦'
+            }${offeredPrice.toLocaleString()} per unit for ${quantity} unit(s). Would you like to proceed with the purchase?`;
+        } else if (
+          result.counterOffer
+        ) {
+          rawAiReply =
+            `Thank you for your offer. The best price I can offer right now is ${
+              item.currency ||
+              '₦'
+            }${result.counterOffer.toLocaleString()} per unit.`;
         } else {
-          rawAiReply = `Thank you for your interest. ${result.message}`;
+          rawAiReply =
+            result.message ||
+            'I cannot accept that offer at this time.';
         }
       }
-    } 
-    // SCENARIO 2: Text question / natural language negotiation / general AI session
-    else {
-      if (perception.detectedIntent === 'general' && isGeneralSession) {
-        // Pure general assistant mode (e.g. 2+2, hello, coding questions)
-        try {
-          const systemInstruction = `You are TRADARA AI, an advanced, highly intelligent AI assistant built for TRADARA.
-You are fully equipped to answer general knowledge questions, solve math problems (such as evaluating 2+2 or equations), write and debug code, explain complex technical concepts, and assist users directly with absolute precision.
-Provide precise, direct, and insightful answers without forcing e-commerce or price negotiation prompts.
-Ensure your text output is clean, professional, and free of distracting markdown artifacts.`;
+    } else {
+      // ==========================================
+      // General AI / Natural Language Layer
+      // ==========================================
 
-          const recentHistoryText = (session.messages || [])
-            .slice(-6)
-            .map((m: any) => `${m.sender.toUpperCase()}: ${m.message}`)
-            .join('\n');
+      const conversationContext =
+        this.buildConversationContext(
+          session.messages ||
+            [],
+          history
+        );
 
-          const response = await this.generateWithModelFallback({
-            contents: `Recent Conversation:\n${recentHistoryText}\n\nUser says: "${message}"`,
-            config: {
-              systemInstruction,
-              temperature: 0.3,
-            },
-          });
+      try {
+        let systemInstruction =
+          customSystemPrompt;
 
-          rawAiReply = response.text || `Hello! How can I help you today?`;
-        } catch (error) {
-          console.error("Gemini General AI Error:", error);
-          rawAiReply = `Hello! I am TRADARA AI. You asked: "${message}". I am fully equipped to answer general questions, solve math, write code, or help you explore our marketplace catalog!`;
-        }
-      } else if (item && !isAutoNegotiateActive && !customSystemPrompt) {
-        // If no AI config exists or auto-negotiation is disabled and no override system prompt, state price is firm with location
-        const city = item.locationCity || item.city || item.seller?.city || 'Nigeria';
-        const area = item.locationArea || item.area || item.seller?.area || '';
-        rawAiReply = `The price for ${item.stockName || item.title || 'this item'} is fixed at ${item.currency || '₦'}${item.price.toLocaleString()}. Location: ${city}${area ? ', ' + area : ''}. Feel free to ask if you have any questions about its specifications!`;
-      } else {
-        // Use Gemini with passed or dynamic prompt
-        try {
-          // Assemble Short-Term Memory Context from historic message chain
-          const recentHistoryText = (session.messages || [])
-            .slice(-6)
-            .map((m: any) => `${m.sender.toUpperCase()}: ${m.message}`)
-            .join('\n');
-
-          let systemInstruction = customSystemPrompt;
-
-          if (!systemInstruction) {
-            if (item) {
-              // Explicitly injecting City, Area, and Seller Pickup Details into Product AI
-              const city = item.locationCity || item.city || item.seller?.city || 'Not specified';
-              const area = item.locationArea || item.area || item.seller?.area || 'Not specified';
-              const address = item.locationAddress || item.pickupAddress || item.seller?.address || 'Available via platform chat';
-
-              systemInstruction = `
-You are TRADARA's AI Sales Assistant representing the seller for "${item.stockName || item.title || 'this item'}".
-Your tone: ${item.aiConfig?.aiTone || 'Friendly, professional, and persuasive'}.
-
---- ITEM LOCATION & PICKUP INFO ---
-- City: ${city}
-- Area / Neighborhood: ${area}
-- Exact Pickup Address / Details: ${address}
-
---- STRICT SELLER CONSTRAINTS & KNOWLEDGE BASE ---
-- Listed Unit Price: ${item.currency || '₦'}${item.price}
-- Minimum Floor Price: ${item.currency || '₦'}${item.aiConfig?.minimumPrice || item.price}
-- Target Discount Price: ${item.currency || '₦'}${item.aiConfig?.targetPrice || item.price}
-- Walkaway Absolute Floor: ${item.currency || '₦'}${item.aiConfig?.walkawayPrice || item.aiConfig?.minimumPrice || item.price}
-- Bulk Purchase Minimum Quantity required for bulk discount: ${item.aiConfig?.bulkMinQuantity ? item.aiConfig.bulkMinQuantity + ' units' : 'N/A (No bulk tier defined)'}
-- Bulk Discount Tier: ${item.aiConfig?.bulkDiscountPercent ? item.aiConfig.bulkDiscountPercent + '% off' : 'N/A'}
-- Condition: ${item.aiConfig?.condition || 'Not specified'}
-- Specifications: ${item.aiConfig?.specifications || item.description || 'N/A'}
-- Frequently Asked Questions (FAQ): ${item.aiConfig?.faqKnowledgeBase || 'N/A'}
-- Warranty: ${item.aiConfig?.warrantyPeriod || 'N/A'}
-
---- REAL-TIME PERCEPTION & MARKETPLACE INTELLIGENCE ---
-- Perceived Buyer Intent: ${perception.detectedIntent}
-- Perceived Sentiment: ${perception.sentiment}
-- Perceived Urgency: ${perception.urgency}
-- Historical Item Conversion Rate: ${intelligence.itemHistoricalConversions} successful deals closed.
-- Buyer Past Platform Success: ${intelligence.buyerSuccessfulDeals} of ${intelligence.buyerPastNegotiationCount} chats converted.
-
---- NEGOTIATION & LOCATION RULES ---
-1. Answer buyer questions accurately based on the specs, condition, and FAQs above.
-2. If asked about pickup, city, location, or area, explicitly state the City (${city}) and Area (${area}).
-3. NEVER offer a price lower than ${item.currency || '₦'}${item.aiConfig?.minimumPrice || item.price} per unit.
-4. BULK QUANTITY RULE: If the buyer asks for a wholesale or bulk discount, inform them that bulk pricing requires a minimum purchase of ${item.aiConfig?.bulkMinQuantity || 'seller-defined'} units. Do NOT grant bulk discounts for orders below this minimum threshold.
-5. If the buyer asks for "last price", "bottom line", or if price is negotiable for single units:
-   - Acknowledge that discounts are possible.
-   - Do NOT give away the absolute floor (${item.currency || '₦'}${item.aiConfig?.walkawayPrice || item.aiConfig?.minimumPrice || item.price}) immediately.
-   - Proactively suggest a reasonable initial price near ${item.currency || '₦'}${item.aiConfig?.targetPrice || item.price}.
-6. OFF-TOPIC RULE: If the buyer asks questions unrelated to the item or trading on TRADARA, politely state that you are the product sales assistant for this item, and redirect them back to discuss the item's features or price.
-7. Adapt your response style based on buyer sentiment: If sentiment is frustrated or urgency is high, keep it ultra-direct.
-8. Keep responses concise (2-4 sentences max) suitable for live chat.
-9. PRESENTATION: Keep output crisp, clean, professional, and free of distracting markdown artifacts or stray asterisks.
-`;
-            } else {
-              systemInstruction = `You are TRADARA AI, an advanced, highly intelligent AI general assistant built for TRADARA (acting like ChatGPT or Claude). 
-Your capabilities: You can answer any general knowledge question, explain technical concepts, write or debug code, solve mathematics and logic problems, and assist with general inquiries with absolute precision and depth.
-Important Guideline: Answer all general inquiries, questions on tech, coding, mathematics, science, history, and business insights completely and intelligently. Do not restrict general questions. If the user inquires about buying, pricing, or negotiating a specific product while in general assistant mode, answer them and politely guide them to select a product card on TRADARA to start live price negotiation.
-Ensure clean, distraction-free markdown generation logic without stray formatting artifacts.`;
-            }
-          }
-
-          const response = await this.generateWithModelFallback({
-            contents: `Recent Conversation:\n${recentHistoryText}\n\nUser says: "${message}"`,
-            config: {
-              systemInstruction,
-              temperature: 0.3,
-            },
-          });
-
-          rawAiReply = response.text || '';
-        } catch (error) {
-          console.error("Gemini AI Processing Error:", error);
-          
-          // Rule-based deterministic fallback when API key is missing or model fails
+        if (!systemInstruction) {
           if (item) {
-            const minP = item.aiConfig?.minimumPrice || item.price;
-            const targetP = item.aiConfig?.targetPrice || item.price;
-            const msgLower = message.toLowerCase();
-            const city = item.locationCity || item.city || item.seller?.city || 'Nigeria';
+            const city =
+              item.locationCity ||
+              item.city ||
+              item.seller?.city ||
+              'Not specified';
 
-            if (msgLower.includes('how much') || msgLower.includes('price')) {
-              rawAiReply = `The listed price for ${item.stockName || item.title || 'this item'} is ${item.currency || '₦'}${item.price.toLocaleString()}.`;
-            } else if (msgLower.includes('location') || msgLower.includes('city') || msgLower.includes('area') || msgLower.includes('where')) {
-              rawAiReply = `This item is located in ${city}.`;
-            } else if (msgLower.includes('bottom') || msgLower.includes('negotiable') || msgLower.includes('less') || msgLower.includes('last price') || msgLower.includes('discount')) {
-              if (targetP < item.price) {
-                rawAiReply = `The listed price is ${item.currency || '₦'}${item.price.toLocaleString()}, but I can offer it to you for ${item.currency || '₦'}${targetP.toLocaleString()} for a quick deal!`;
-              } else if (minP < item.price) {
-                rawAiReply = `The listed price is ${item.currency || '₦'}${item.price.toLocaleString()}, but we can consider offers down to ${item.currency || '₦'}${minP.toLocaleString()}.`;
-              } else {
-                rawAiReply = `The price for ${item.stockName || item.title || 'this item'} is firm at ${item.currency || '₦'}${item.price.toLocaleString()}.`;
-              }
-            } else if (msgLower.includes('hi') || msgLower.includes('hello') || msgLower.includes('hey')) {
-              rawAiReply = `Hello! How can I help you today regarding ${item.stockName || item.title || 'this product'}?`;
-            } else {
-              rawAiReply = `I am TRADARA's sales assistant for ${item.stockName || item.title || 'this item'} (Listed: ${item.currency || '₦'}${item.price.toLocaleString()}, Location: ${city}). How can I assist you with its details or pricing?`;
+            const area =
+              item.locationArea ||
+              item.area ||
+              item.seller?.area ||
+              'Not specified';
+
+            const address =
+              item.locationAddress ||
+              item.pickupAddress ||
+              item.seller?.address ||
+              'Available through Tradara chat';
+
+            systemInstruction = `
+You are TRADARA AI, the intelligent assistant for the TRADARA marketplace.
+
+You are currently assisting a customer with:
+Product: ${
+              item.stockName ||
+              item.title ||
+              'this product'
             }
+Listed price: ${
+              item.currency ||
+              '₦'
+            }${Number(
+              item.price || 0
+            ).toLocaleString()}
+Category: ${
+              item.category ||
+              'Not specified'
+            }
+
+PRODUCT INFORMATION:
+Description: ${
+              item.description ||
+              'Not specified'
+            }
+Specifications: ${
+              item.aiConfig
+                ?.specifications ||
+              'Not specified'
+            }
+Condition: ${
+              item.aiConfig
+                ?.condition ||
+              'Not specified'
+            }
+Warranty: ${
+              item.aiConfig
+                ?.warrantyPeriod ||
+              'Not specified'
+            }
+FAQ: ${
+              item.aiConfig
+                ?.faqKnowledgeBase ||
+              'Not specified'
+            }
+
+LOCATION:
+City: ${city}
+Area: ${area}
+Pickup details: ${address}
+
+NEGOTIATION INFORMATION:
+Minimum automated price: ${
+              item.currency ||
+              '₦'
+            }${Number(
+              item.aiConfig
+                ?.minimumPrice ||
+                item.price ||
+                0
+            ).toLocaleString()}
+Target price: ${
+              item.currency ||
+              '₦'
+            }${Number(
+              item.aiConfig
+                ?.targetPrice ||
+                item.price ||
+                0
+            ).toLocaleString()}
+Bulk minimum: ${
+              item.aiConfig
+                ?.bulkMinQuantity ||
+              'Not configured'
+            }
+
+RULES:
+- Answer product questions using the supplied product information.
+- Never invent specifications, warranty terms, location details, stock information, or seller promises.
+- If information is unavailable, say that it is not provided.
+- Do not expose private seller information.
+- Respect the configured negotiation floor.
+- If the user asks a general question unrelated to this product, answer it normally and helpfully rather than forcing it into e-commerce.
+- Do not claim that you executed an action unless an actual tool execution result confirms it.
+- Be natural, intelligent and conversational.
+- Use Markdown when it improves clarity.
+`;
           } else {
-            rawAiReply = `Hello! I am TRADARA AI. You asked: "${message}". I am fully equipped to answer general questions, solve math, write code, or help you explore our marketplace catalog!`;
+            systemInstruction = `
+You are TRADARA AI, a general-purpose intelligent assistant integrated into the TRADARA marketplace.
+
+You are a genuine general-purpose AI assistant, not merely a sales bot or product FAQ system.
+
+You can:
+- Answer general knowledge questions.
+- Explain concepts at beginner, intermediate or advanced levels.
+- Solve mathematics and logic problems.
+- Write, explain, review and debug code.
+- Help with JavaScript, TypeScript, React, Node.js, APIs, databases and software architecture.
+- Discuss science, technology, history, business and education.
+- Help users plan and reason through complex tasks.
+- Explain marketplace concepts and product information when supplied.
+- Help users formulate better questions and decisions.
+- Maintain conversational context.
+- Use available tools when the backend actually exposes and authorizes those tools.
+
+IMPORTANT:
+- Answer the user's actual question directly.
+- Do not force every question into e-commerce.
+- Do not use generic filler.
+- Do not pretend a tool was executed when it was not.
+- Do not pretend to have searched the web unless an actual search tool was executed.
+- If you do not know something, say so clearly.
+- For code, provide practical code and explain important details.
+- For mathematics, calculate carefully and show useful reasoning.
+- For ambiguous requests, ask a focused clarification only when it is genuinely necessary.
+- Be conversational rather than repetitive.
+- Use Markdown naturally.
+`;
           }
         }
+
+        const response =
+          await this.generateWithModelFallback(
+            {
+              contents: `${
+                conversationContext
+                  ? `CONVERSATION CONTEXT:\n${conversationContext}\n\n`
+                  : ''
+              }CURRENT USER MESSAGE:\n${cleanMessage}`,
+              config: {
+                systemInstruction,
+                temperature: 0.5,
+                maxOutputTokens:
+                  2048
+              }
+            }
+          );
+
+        rawAiReply =
+          response.text || '';
+      } catch (error) {
+        console.error(
+          'Gemini AI Processing Error:',
+          error
+        );
+
+        throw new Error(
+          'The AI model could not generate a response.'
+        );
       }
     }
 
-    // Apply strict markdown sanitization to ensure crisp, distraction-free output
-    const aiReply = this.sanitizeMarkdownOutput(rawAiReply);
+    const aiReply =
+      this.sanitizeMarkdownOutput(
+        rawAiReply
+      ) ||
+      'I was unable to generate a response for that request. Please try again.';
 
-    // Update Session State
-    await (prisma as any).aiNegotiationSession.update({
-      where: { id: session.id },
-      data: {
-        roundCount: currentRound,
-        currentOffer: offeredPrice || session.currentOffer,
-        agreedPrice: agreedPrice || session.agreedPrice,
-        status: dealStatus,
-        updatedAt: new Date(),
-      },
-    });
+    await (
+      prisma as any
+    ).aiNegotiationSession.update(
+      {
+        where: {
+          id: session.id
+        },
+        data: {
+          roundCount:
+            currentRound,
+          currentOffer:
+            offeredPrice !==
+            undefined
+              ? offeredPrice
+              : session.currentOffer,
+          agreedPrice:
+            agreedPrice ||
+            session.agreedPrice,
+          status:
+            dealStatus,
+          updatedAt:
+            new Date()
+        }
+      }
+    );
 
-    // Save AI Response
-    const aiMessage = await (prisma as any).aiChatMessage.create({
-      data: {
-        sessionId: session.id,
-        sender: 'ai',
-        message: aiReply,
-        offerMade: agreedPrice || null,
-      },
-    });
+    const aiMessage =
+      await (
+        prisma as any
+      ).aiChatMessage.create({
+        data: {
+          sessionId:
+            session.id,
+          sender: 'ai',
+          message:
+            aiReply,
+          offerMade:
+            agreedPrice ||
+            null
+        }
+      });
 
-    // Fire Continuous Learning Pipeline asynchronously
-    this.recordInteractionLearning(session.id, message, aiReply, perception, dealStatus);
+    void this.recordInteractionLearning(
+      session.id,
+      cleanMessage,
+      aiReply,
+      perception,
+      dealStatus
+    );
 
     return {
-      sessionId: session.id,
-      reply: aiReply,
-      status: dealStatus,
+      sessionId:
+        session.id,
+      reply:
+        aiReply,
+      status:
+        dealStatus,
       agreedPrice,
       aiMessage,
       perception,
-      intelligence,
+      intelligence
     };
   }
 
-  // Method to allow switching session status (Switch to Human / Re-enable AI)
-  public static async updateSessionStatus(sessionId: string, status: 'active' | 'transferred' | 'closed') {
-    const updatedSession = await (prisma as any).aiNegotiationSession.update({
-      where: { id: sessionId },
-      data: { status },
-    });
-    return updatedSession;
+  /**
+   * Allow switching session status.
+   */
+  public static async updateSessionStatus(
+    sessionId: string,
+    status:
+      | 'active'
+      | 'transferred'
+      | 'closed'
+      | 'human_agent'
+  ) {
+    return await (
+      prisma as any
+    ).aiNegotiationSession.update(
+      {
+        where: {
+          id: sessionId
+        },
+        data: {
+          status
+        }
+      }
+    );
   }
 }

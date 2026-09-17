@@ -158,7 +158,7 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
         const aiResponseMsg: Message = {
           id: `ai-${Date.now()}`,
           sender: status === 'transferred' ? 'system' : 'ai',
-          text: reply,
+          text: reply ?? 'TRADARA AI did not return a response. Please try again.',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           perception: perception || undefined,
           offer: agreedPrice ? {
@@ -416,7 +416,7 @@ export const AiNegotiationChatModal: React.FC<AiNegotiationChatModalProps> = ({
               }
               className="flex-1 bg-slate-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600 transition-all placeholder:text-gray-400"
             />
-            
+
             <button
               type="submit"
               disabled={!inputValue.trim() && !offerInput}
