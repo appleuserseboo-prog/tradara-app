@@ -407,6 +407,12 @@ export class AiSalesService {
    *
    * Do not list models that may not exist. The primary model can
    * be changed with GEMINI_MODEL without changing application code.
+   *
+   * Current stable Gemini Flash models are preferred.
+   *
+   * The fallback chain intentionally avoids Gemini 2.5 Flash because
+   * the current deployed API account has already returned HTTP 404
+   * for that model.
    */
   private static async generateWithModelFallback(
     params: {
@@ -415,21 +421,51 @@ export class AiSalesService {
     }
   ) {
     const configuredModel =
-      process.env.GEMINI_MODEL ||
-      'gemini-2.5-flash';
+      (
+        process.env.GEMINI_MODEL ||
+        ''
+      ).trim();
 
-    const modelsToTry = [
-      configuredModel,
-      ...(configuredModel !==
-      'gemini-2.5-flash'
-        ? ['gemini-2.5-flash']
-        : [])
+    const supportedModels = [
+      'gemini-3.8-flash',
+      'gemini-3.7-flash',
+      'gemini-3.6-flash',
+      'gemini-3.5-flash'
     ];
+
+    const modelsToTry: string[] = [];
+
+    if (
+      configuredModel &&
+      supportedModels.includes(
+        configuredModel
+      )
+    ) {
+      modelsToTry.push(
+        configuredModel
+      );
+    }
+
+    for (const modelName of supportedModels) {
+      if (
+        !modelsToTry.includes(
+          modelName
+        )
+      ) {
+        modelsToTry.push(
+          modelName
+        );
+      }
+    }
 
     let lastError: any;
 
     for (const modelName of modelsToTry) {
       try {
+        console.info(
+          `[Gemini] Attempting model: ${modelName}`
+        );
+
         return await ai.models.generateContent(
           {
             model: modelName,
@@ -1116,7 +1152,6 @@ IMPORTANT:
               }CURRENT USER MESSAGE:\n${cleanMessage}`,
               config: {
                 systemInstruction,
-                temperature: 0.5,
                 maxOutputTokens:
                   2048
               }
