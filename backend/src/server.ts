@@ -104,7 +104,7 @@ app.use((err: any, req: any, res: any, next: any) => {
   });
 });
 
-httpServer.listen(PORT, () => {
+httpServer.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`\n [BACKEND] Tradara Server running on port ${PORT}.`);
     console.log(` [PRISMA] Singleton Client recognized.`);
 });

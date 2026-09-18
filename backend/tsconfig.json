@@ -14,7 +14,7 @@
     "resolveJsonModule": true,
     "sourceMap": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["jest", "node"]
+    "types": ["node"]
   },
   "include": [
     "src/**/*.ts"
