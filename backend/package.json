@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "main": "src/server.ts",
   "scripts": {
-    "start": "npx prisma generate && ts-node src/server.ts",
-    "build": "npx prisma generate",
-    "dev": "npx prisma generate && nodemon src/server.ts"
+    "start": "npx prisma generate --schema=./Prisma/schema.prisma && ts-node src/server.ts",
+    "build": "npx prisma generate --schema=./Prisma/schema.prisma",
+    "dev": "npx prisma generate --schema=./Prisma/schema.prisma && nodemon src/server.ts"
   },
   "dependencies": {
     "@google/genai": "^2.21.0",
