@@ -1,4 +1,4 @@
-// ==========================================
+ // ==========================================
 // FILE: backend/src/ai/memory/MemoryService.ts
 // ==========================================
 
@@ -67,7 +67,11 @@ If no durable facts exist, return [].
         temperature: 0.1,
       });
 
-      const cleanJsonText = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
+      const cleanJsonText = response.text
+        .replace(/```json/g, '')
+        .replace(/```/g, '')
+        .trim();
+
       if (!cleanJsonText || cleanJsonText === '[]') return;
 
       const extractedFacts: UserFact[] = JSON.parse(cleanJsonText);
@@ -77,8 +81,10 @@ If no durable facts exist, return [].
 
         await prisma.userAiMemory.upsert({
           where: {
-            // Assumes a composite index on userId_key in your Prisma schema
-            id: `${userId}_${fact.key.toLowerCase().replace(/\s+/g, '_')}`,
+            userId_key: {
+              userId,
+              key: fact.key,
+            },
           },
           update: {
             value: fact.value,
@@ -86,12 +92,10 @@ If no durable facts exist, return [].
             updatedAt: new Date(),
           },
           create: {
-            id: `${userId}_${fact.key.toLowerCase().replace(/\s+/g, '_')}`,
             userId,
             category: fact.category,
             key: fact.key,
             value: fact.value,
-            weight: fact.weight ?? 1.0,
           },
         });
       }

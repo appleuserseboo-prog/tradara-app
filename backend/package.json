@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "main": "src/server.ts",
   "scripts": {
-    "start": "npx prisma generate --schema=./Prisma/schema.prisma && ts-node src/server.ts",
-    "build": "npx prisma generate --schema=./Prisma/schema.prisma",
+    "start": "node dist/server.js",
+    "build": "npx prisma generate --schema=./Prisma/schema.prisma && tsc",
     "dev": "npx prisma generate --schema=./Prisma/schema.prisma && nodemon src/server.ts"
   },
   "dependencies": {
@@ -35,6 +35,7 @@
     "@types/node": "^22.19.17",
     "@types/nodemailer": "^6.4.14",
     "nodemon": "^3.1.14",
+    "prisma": "^6.19.3",
     "ts-node-dev": "^2.0.0"
   }
 }
