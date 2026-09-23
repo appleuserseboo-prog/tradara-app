@@ -15,6 +15,26 @@ const ai = new GoogleGenAI({
   apiKey
 });
 
+// ==========================================
+// Types
+// ==========================================
+
+export interface AiSalesToolDefinition {
+  name: string;
+  description: string;
+  riskLevel?: string;
+  requiresApproval?: boolean;
+  parameters?: any;
+}
+
+export interface AiSalesToolCall {
+  id: string;
+  name: string;
+  arguments: Record<string, any>;
+  requiresApproval?: boolean;
+  riskLevel?: string;
+}
+
 export interface ProcessChatMessageInput {
   itemId?: string;
   buyerSession: string;
@@ -24,6 +44,7 @@ export interface ProcessChatMessageInput {
   quantity?: number;
   systemPrompt?: string;
   sessionId?: string;
+
   history?: Array<{
     role:
       | 'user'
@@ -35,8 +56,35 @@ export interface ProcessChatMessageInput {
     content?: string;
     message?: string;
   }>;
+
   userConfirmationConfirmed?: boolean;
   pendingTool?: any;
+
+  /**
+   * Optional agent tools supplied by the orchestration layer.
+   *
+   * This service is intentionally capable of exposing structured
+   * Gemini function calls without directly executing them.
+   *
+   * The orchestrator remains responsible for:
+   * - authorization
+   * - approval
+   * - actual tool execution
+   * - tool result injection
+   */
+  agentTools?: AiSalesToolDefinition[];
+
+  /**
+   * Optional tool result context supplied by a future orchestration
+   * pass after a tool has executed.
+   */
+  toolResults?: Array<{
+    callId?: string;
+    name: string;
+    result?: any;
+    error?: string;
+    success?: boolean;
+  }>;
 }
 
 export interface BuyerPerception {
@@ -46,14 +94,17 @@ export interface BuyerPerception {
     | 'negative'
     | 'frustrated'
     | 'eager';
+
   urgency:
     | 'low'
     | 'medium'
     | 'high';
+
   priceSensitivity:
     | 'low'
     | 'medium'
     | 'high';
+
   detectedIntent:
     | 'inquiry'
     | 'bargain'
@@ -62,6 +113,7 @@ export interface BuyerPerception {
     | 'bulk_inquiry'
     | 'closing'
     | 'general';
+
   estimatedMaxBudget?: number;
 }
 
@@ -72,6 +124,19 @@ export interface MarketplaceIntelligence {
   buyerSuccessfulDeals: number;
   categoryDemandScore: number;
 }
+
+// ==========================================
+// Gemini response helpers
+// ==========================================
+
+interface ParsedGeminiResponse {
+  text: string;
+  toolCalls: AiSalesToolCall[];
+}
+
+// ==========================================
+// AI Sales Service
+// ==========================================
 
 export class AiSalesService {
   /**
@@ -403,6 +468,390 @@ export class AiSalesService {
   }
 
   /**
+   * Convert Tradara tool definitions into Gemini function declarations.
+   *
+   * The parameters are intentionally passed as `any` because the
+   * application supports multiple tool-schema representations and
+   * @google/genai versions can differ in their TypeScript declarations.
+   */
+  private static buildGeminiToolDeclarations(
+    tools: AiSalesToolDefinition[] = []
+  ): any[] {
+    if (!Array.isArray(tools)) {
+      return [];
+    }
+
+    const declarations: any[] = [];
+
+    const seen = new Set<string>();
+
+    for (const tool of tools) {
+      if (!tool) {
+        continue;
+      }
+
+      const name =
+        typeof tool.name === 'string'
+          ? tool.name.trim()
+          : '';
+
+      if (!name) {
+        continue;
+      }
+
+      if (seen.has(name)) {
+        continue;
+      }
+
+      seen.add(name);
+
+      const description =
+        typeof tool.description === 'string' &&
+        tool.description.trim()
+          ? tool.description.trim()
+          : `Execute the ${name} tool.`;
+
+      let parameters =
+        tool.parameters;
+
+      if (
+        !parameters ||
+        typeof parameters !== 'object'
+      ) {
+        parameters = {
+          type: 'object',
+          properties: {}
+        };
+      }
+
+      declarations.push({
+        name,
+        description,
+        parameters
+      });
+    }
+
+    return declarations;
+  }
+
+  /**
+   * Build tool execution context that can be injected into the
+   * model conversation after an orchestrator executes a tool.
+   */
+  private static buildToolResultContext(
+    toolResults: ProcessChatMessageInput['toolResults'] = []
+  ): string {
+    if (
+      !Array.isArray(toolResults) ||
+      toolResults.length === 0
+    ) {
+      return '';
+    }
+
+    const lines: string[] = [
+      'TOOL EXECUTION RESULTS:',
+      'The following results were returned by tools actually executed by the application.'
+    ];
+
+    for (const toolResult of toolResults) {
+      if (!toolResult) {
+        continue;
+      }
+
+      lines.push(
+        `Tool: ${toolResult.name || 'unknown'}`
+      );
+
+      if (
+        toolResult.callId
+      ) {
+        lines.push(
+          `Call ID: ${toolResult.callId}`
+        );
+      }
+
+      lines.push(
+        `Success: ${
+          toolResult.success === true
+            ? 'true'
+            : toolResult.success === false
+            ? 'false'
+            : 'unknown'
+        }`
+      );
+
+      if (
+        toolResult.error
+      ) {
+        lines.push(
+          `Error: ${toolResult.error}`
+        );
+      }
+
+      if (
+        toolResult.result !==
+        undefined
+      ) {
+        let serialized = '';
+
+        try {
+          serialized =
+            typeof toolResult.result ===
+            'string'
+              ? toolResult.result
+              : JSON.stringify(
+                  toolResult.result
+                );
+        } catch {
+          serialized =
+            String(
+              toolResult.result
+            );
+        }
+
+        lines.push(
+          `Result: ${serialized}`
+        );
+      }
+
+      lines.push('');
+    }
+
+    return lines.join('\n').trim();
+  }
+
+  /**
+   * Extract structured function calls from a Gemini response.
+   *
+   * The SDK exposes functionCalls() on some versions. Other versions
+   * expose functionCall parts inside candidates. This implementation
+   * supports both shapes so the service is more resilient.
+   */
+  private static extractToolCalls(
+    response: any
+  ): AiSalesToolCall[] {
+    const calls: AiSalesToolCall[] = [];
+    const seen = new Set<string>();
+
+    const addCall = (
+      rawCall: any
+    ): void => {
+      if (!rawCall) {
+        return;
+      }
+
+      const name =
+        rawCall.name ||
+        rawCall.functionCall?.name;
+
+      if (
+        typeof name !== 'string' ||
+        !name.trim()
+      ) {
+        return;
+      }
+
+      const rawArguments =
+        rawCall.args ??
+        rawCall.arguments ??
+        rawCall.functionCall?.args ??
+        rawCall.functionCall?.arguments ??
+        {};
+
+      let args: Record<string, any> = {};
+
+      if (
+        rawArguments &&
+        typeof rawArguments ===
+          'object' &&
+        !Array.isArray(rawArguments)
+      ) {
+        args = rawArguments;
+      } else if (
+        typeof rawArguments ===
+        'string'
+      ) {
+        try {
+          const parsed =
+            JSON.parse(
+              rawArguments
+            );
+
+          if (
+            parsed &&
+            typeof parsed ===
+              'object' &&
+            !Array.isArray(parsed)
+          ) {
+            args = parsed;
+          }
+        } catch {
+          args = {};
+        }
+      }
+
+      const callId =
+        rawCall.id ||
+        rawCall.callId ||
+        `tool_call_${Date.now()}_${Math.random()
+          .toString(36)
+          .slice(2, 10)}`;
+
+      const normalizedId =
+        String(callId);
+
+      const duplicateKey =
+        `${normalizedId}:${name}`;
+
+      if (
+        seen.has(duplicateKey)
+      ) {
+        return;
+      }
+
+      seen.add(duplicateKey);
+
+      calls.push({
+        id: normalizedId,
+        name: name.trim(),
+        arguments: args
+      });
+    };
+
+    try {
+      if (
+        typeof response?.functionCalls ===
+        'function'
+      ) {
+        const functionCalls =
+          response.functionCalls();
+
+        if (
+          Array.isArray(
+            functionCalls
+          )
+        ) {
+          for (
+            const call of functionCalls
+          ) {
+            addCall(call);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(
+        '[Gemini] Could not read functionCalls():',
+        error
+      );
+    }
+
+    const candidates =
+      Array.isArray(
+        response?.candidates
+      )
+        ? response.candidates
+        : [];
+
+    for (const candidate of candidates) {
+      const parts =
+        Array.isArray(
+          candidate?.content?.parts
+        )
+          ? candidate.content.parts
+          : [];
+
+      for (const part of parts) {
+        if (
+          part?.functionCall
+        ) {
+          addCall(
+            part.functionCall
+          );
+        }
+
+        if (
+          part?.function_call
+        ) {
+          addCall(
+            part.function_call
+          );
+        }
+      }
+    }
+
+    return calls;
+  }
+
+  /**
+   * Extract text while safely ignoring function-call-only parts.
+   */
+  private static extractResponseText(
+    response: any
+  ): string {
+    if (
+      typeof response?.text ===
+      'string'
+    ) {
+      return response.text;
+    }
+
+    const textParts: string[] = [];
+
+    const candidates =
+      Array.isArray(
+        response?.candidates
+      )
+        ? response.candidates
+        : [];
+
+    for (const candidate of candidates) {
+      const parts =
+        Array.isArray(
+          candidate?.content?.parts
+        )
+          ? candidate.content.parts
+          : [];
+
+      for (const part of parts) {
+        if (
+          typeof part?.text ===
+          'string'
+        ) {
+          textParts.push(
+            part.text
+          );
+        }
+      }
+    }
+
+    return textParts.join('\n');
+  }
+
+  /**
+   * Parse the Gemini response into:
+   * - normal assistant text
+   * - structured tool calls
+   */
+  private static parseGeminiResponse(
+    response: any
+  ): ParsedGeminiResponse {
+    const toolCalls =
+      this.extractToolCalls(
+        response
+      );
+
+    const text =
+      this.extractResponseText(
+        response
+      );
+
+    return {
+      text,
+      toolCalls
+    };
+  }
+
+  /**
    * Generate content with a conservative model fallback.
    *
    * Do not list models that may not exist. The primary model can
@@ -599,7 +1048,9 @@ export class AiSalesService {
         customSystemPrompt,
       sessionId:
         explicitSessionId,
-      history = []
+      history = [],
+      agentTools = [],
+      toolResults = []
     } = input;
 
     const cleanMessage =
@@ -867,7 +1318,8 @@ export class AiSalesService {
           session.agreedPrice,
         aiMessage,
         perception,
-        intelligence
+        intelligence,
+        toolCalls: []
       };
     }
 
@@ -883,6 +1335,9 @@ export class AiSalesService {
 
     let agreedPrice =
       session.agreedPrice;
+
+    let structuredToolCalls:
+      AiSalesToolCall[] = [];
 
     const isAutoNegotiateActive =
       Boolean(
@@ -1142,24 +1597,174 @@ IMPORTANT:
           }
         }
 
+        // ==========================================
+        // Agent Tool Instructions
+        // ==========================================
+
+        if (
+          Array.isArray(
+            agentTools
+          ) &&
+          agentTools.length > 0
+        ) {
+          const toolNames =
+            agentTools
+              .map(
+                (tool) =>
+                  tool?.name
+              )
+              .filter(
+                Boolean
+              );
+
+          systemInstruction += `
+
+AVAILABLE AGENT TOOLS:
+${agentTools
+  .map(
+    (tool) =>
+      `- ${tool.name}: ${
+        tool.description ||
+        'No description supplied.'
+      }${
+        tool.riskLevel
+          ? ` [risk=${tool.riskLevel}]`
+          : ''
+      }${
+        tool.requiresApproval
+          ? ' [requires approval]'
+          : ''
+      }`
+  )
+  .join('\n')}
+
+TOOL USAGE RULES:
+- Use a tool when the user's request requires information or an action that the tool is designed to provide.
+- Do not invent tool results.
+- Do not claim a tool was executed merely because you requested it.
+- Read-only tools may be used when genuinely useful.
+- Sensitive or external actions may require approval.
+- If a tool is unavailable, explain what information is missing.
+- Do not use tools for ordinary questions that can be answered directly.
+- Prefer the most specific available tool.
+- Never expose API keys, authentication tokens, internal permissions or private system data.
+
+REGISTERED TOOL NAMES:
+${toolNames.join(', ')}
+`;
+        }
+
+        const toolResultContext =
+          this.buildToolResultContext(
+            toolResults
+          );
+
+        const contentsParts: string[] =
+          [];
+
+        if (
+          conversationContext
+        ) {
+          contentsParts.push(
+            `CONVERSATION CONTEXT:\n${conversationContext}`
+          );
+        }
+
+        if (
+          toolResultContext
+        ) {
+          contentsParts.push(
+            toolResultContext
+          );
+        }
+
+        contentsParts.push(
+          `CURRENT USER MESSAGE:\n${cleanMessage}`
+        );
+
+        const geminiTools =
+          this.buildGeminiToolDeclarations(
+            agentTools
+          );
+
+        const generationConfig: any = {
+          systemInstruction,
+          maxOutputTokens:
+            2048
+        };
+
+        /*
+         * Only attach the tools configuration when actual tools
+         * were supplied. This preserves the old behavior for the
+         * existing controller route and general AI calls.
+         */
+        if (
+          geminiTools.length > 0
+        ) {
+          generationConfig.tools = [
+            {
+              functionDeclarations:
+                geminiTools
+            }
+          ];
+        }
+
         const response =
           await this.generateWithModelFallback(
             {
-              contents: `${
-                conversationContext
-                  ? `CONVERSATION CONTEXT:\n${conversationContext}\n\n`
-                  : ''
-              }CURRENT USER MESSAGE:\n${cleanMessage}`,
-              config: {
-                systemInstruction,
-                maxOutputTokens:
-                  2048
-              }
+              contents:
+                contentsParts.join(
+                  '\n\n'
+                ),
+              config:
+                generationConfig
             }
           );
 
+        const parsed =
+          this.parseGeminiResponse(
+            response
+          );
+
+        structuredToolCalls =
+          parsed.toolCalls;
+
         rawAiReply =
-          response.text || '';
+          parsed.text || '';
+
+        /*
+         * Attach metadata to the returned tool calls without
+         * allowing the model to decide its own permissions.
+         *
+         * Actual authorization is still performed by the
+         * orchestrator/tool registry.
+         */
+        if (
+          structuredToolCalls.length >
+          0
+        ) {
+          structuredToolCalls =
+            structuredToolCalls.map(
+              (call) => {
+                const definition =
+                  agentTools.find(
+                    (tool) =>
+                      tool.name ===
+                      call.name
+                  );
+
+                return {
+                  ...call,
+                  requiresApproval:
+                    Boolean(
+                      definition?.requiresApproval
+                    ),
+                  riskLevel:
+                    definition?.riskLevel
+                };
+              }
+            );
+        }
       } catch (error) {
         console.error(
           'Gemini AI Processing Error:',
@@ -1172,11 +1777,30 @@ IMPORTANT:
       }
     }
 
-    const aiReply =
+    /*
+     * When Gemini returns tool calls, the model may not return
+     * ordinary text. That is intentional.
+     *
+     * The orchestrator can now inspect `toolCalls`, execute the
+     * authorized tools, and send their results back into this
+     * service on the next pass.
+     */
+    const hasToolCalls =
+      structuredToolCalls.length >
+      0;
+
+    const sanitizedReply =
       this.sanitizeMarkdownOutput(
         rawAiReply
-      ) ||
-      'I was unable to generate a response for that request. Please try again.';
+      );
+
+    const aiReply =
+      sanitizedReply ||
+      (
+        hasToolCalls
+          ? ''
+          : 'I was unable to generate a response for that request. Please try again.'
+      );
 
     await (
       prisma as any
@@ -1204,29 +1828,48 @@ IMPORTANT:
       }
     );
 
-    const aiMessage =
-      await (
-        prisma as any
-      ).aiChatMessage.create({
-        data: {
-          sessionId:
-            session.id,
-          sender: 'ai',
-          message:
-            aiReply,
-          offerMade:
-            agreedPrice ||
-            null
-        }
-      });
+    /*
+     * Do not persist an empty assistant message when Gemini only
+     * returned structured tool calls.
+     *
+     * This prevents the database from containing blank AI bubbles
+     * while the orchestrator is waiting to execute the tool.
+     */
+    let aiMessage: any = null;
 
-    void this.recordInteractionLearning(
-      session.id,
-      cleanMessage,
-      aiReply,
-      perception,
-      dealStatus
-    );
+    if (aiReply) {
+      aiMessage =
+        await (
+          prisma as any
+        ).aiChatMessage.create({
+          data: {
+            sessionId:
+              session.id,
+            sender: 'ai',
+            message:
+              aiReply,
+            offerMade:
+              agreedPrice ||
+              null
+          }
+        });
+    }
+
+    /*
+     * Learning should only record an actual natural-language
+     * response. Tool calls are execution requests, not completed
+     * actions, so they must not be falsely recorded as completed
+     * AI outcomes.
+     */
+    if (aiReply) {
+      void this.recordInteractionLearning(
+        session.id,
+        cleanMessage,
+        aiReply,
+        perception,
+        dealStatus
+      );
+    }
 
     return {
       sessionId:
@@ -1238,7 +1881,24 @@ IMPORTANT:
       agreedPrice,
       aiMessage,
       perception,
-      intelligence
+      intelligence,
+
+      /*
+       * Structured tool calls produced by Gemini.
+       *
+       * The existing orchestrator currently does not consume these
+       * dynamically yet. They are returned here so the next
+       * orchestrator upgrade can execute them through the existing
+       * Tradara ToolRegistry with permissions and approval controls.
+       */
+      toolCalls:
+        structuredToolCalls,
+
+      /*
+       * Useful signal for the orchestration layer.
+       */
+      requiresToolExecution:
+        hasToolCalls
     };
   }
 
