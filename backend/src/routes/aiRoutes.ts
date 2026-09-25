@@ -1,5 +1,6 @@
 // ==========================================
 // FILE: backend/src/routes/aiRoutes.ts
+// TRADARA AI — Unified AI Routes
 // ==========================================
 
 import { Router } from 'express';
@@ -17,27 +18,43 @@ import { AiSalesService } from '../services/aiSalesService';
 
 import agentRoutes from './agentRoutes';
 
+import {
+  executeAgentRequest,
+} from '../controllers/agentController';
+
 const router = Router();
 
 // ==========================================
-// TRADARA AI — AGENT GATEWAY
+// TRADARA AI — UNIFIED AGENT GATEWAY
 // ==========================================
 //
-// This is the new unified intelligence entry point.
-//
-// Existing negotiation routes remain intact below.
-// The agent gateway will progressively become the
-// orchestration layer for general AI, marketplace AI,
-// tools, memory, vision, media, research and execution.
-//
-// Mounted through the existing /api/ai route.
-// Therefore:
+// These two endpoints intentionally point to
+// the same agent controller:
 //
 // POST /api/ai/agent
+// POST /api/ai/chat
+//
+// /agent is the canonical agent endpoint.
+//
+// /chat is the compatibility endpoint used by
+// the existing Tradara frontend.
+//
+// This allows the frontend to use:
+//
+// POST /api/ai/chat
+//
+// without bypassing the new AgentOrchestrator.
 //
 // ==========================================
 
+// Canonical agent gateway
 router.use('/agent', agentRoutes);
+
+// Frontend-compatible AI chat gateway
+router.post(
+  '/chat',
+  executeAgentRequest
+);
 
 // ==========================================
 // EXISTING PRODUCT AI CONFIGURATION
