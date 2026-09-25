@@ -7,6 +7,7 @@ import {
   AgentContext,
   AgentToolDefinition,
   AgentToolResult,
+  AgentToolParameters,
 } from './types';
 
 import {
@@ -137,6 +138,31 @@ function requiresLegacyApproval(
   riskLevel: RiskLevel
 ): boolean {
   return riskLevel === 'EXECUTE';
+}
+
+function normalizeLegacyParameters(
+  parameters: any
+): AgentToolParameters | undefined {
+  if (!parameters || typeof parameters !== 'object') {
+    return undefined;
+  }
+
+  const properties =
+    parameters.properties &&
+    typeof parameters.properties === 'object'
+      ? parameters.properties
+      : {};
+
+  return {
+    type: 'object',
+    properties,
+    ...(Array.isArray(parameters.required)
+      ? { required: parameters.required }
+      : {}),
+    ...(typeof parameters.additionalProperties === 'boolean'
+      ? { additionalProperties: parameters.additionalProperties }
+      : {}),
+  };
 }
 
 
@@ -304,6 +330,14 @@ function registerMarketplaceTools(): void {
 
       description,
 
+      parameters: normalizeLegacyParameters(
+        (marketplaceTool as any).parameters
+      ),
+
+      category: 'marketplace',
+      tags: ['marketplace', 'legacy-registry'],
+      supportsParallel: riskLevel !== 'EXECUTE',
+
       riskLevel:
         normalizeLegacyRisk(
           riskLevel
@@ -451,6 +485,9 @@ registerAgentTool({
     'Returns the currently selected product context when a product is active.',
 
   riskLevel: 'low',
+  category: 'context',
+  supportsParallel: true,
+  parameters: { type: 'object', properties: {} },
 
   execute: async (
     _args,
@@ -486,6 +523,9 @@ registerAgentTool({
     'Returns the current authenticated user context available to the AI runtime.',
 
   riskLevel: 'low',
+  category: 'context',
+  supportsParallel: true,
+  parameters: { type: 'object', properties: {} },
 
   execute: async (
     _args,
@@ -515,6 +555,9 @@ registerAgentTool({
     'Returns the structured context supplied to the current AI request.',
 
   riskLevel: 'low',
+  category: 'context',
+  supportsParallel: true,
+  parameters: { type: 'object', properties: {} },
 
   execute: async (
     _args,

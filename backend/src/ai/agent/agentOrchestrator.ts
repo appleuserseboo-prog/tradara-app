@@ -35,6 +35,9 @@ const DEFAULT_OPTIONS: Required<AgentRuntimeOptions> = {
   enableTools: true,
   enableMemory: true,
   executeActions: false,
+  allowParallelTools: false,
+  toolTimeoutMs: 30000,
+  maxHistoryMessages: 12,
 };
 
 type NormalizedModelToolCall = {
@@ -54,6 +57,9 @@ type ModelToolDefinition = {
   description: string;
   riskLevel: 'low' | 'medium' | 'high' | 'critical';
   requiresApproval: boolean;
+  parameters?: any;
+  category?: string;
+  supportsParallel?: boolean;
 };
 
 function createRequestId(): string {
@@ -322,7 +328,8 @@ function createInitialPlan(
 }
 
 function buildHistory(
-  context: AgentContext
+  context: AgentContext,
+  maxHistoryMessages: number
 ) {
   return (context.messages || [])
     .filter(
@@ -330,7 +337,7 @@ function buildHistory(
         message.role === 'user' ||
         message.role === 'assistant'
     )
-    .slice(-12)
+    .slice(-Math.max(1, maxHistoryMessages))
     .map((message) => ({
       role:
         message.role === 'assistant'
@@ -488,56 +495,45 @@ function normalizeModelToolCalls(
     return [];
   }
 
-  return rawCalls
-    .map(
-      (
-        rawCall: any
-      ): NormalizedModelToolCall | undefined => {
-        const name =
-          typeof rawCall?.name === 'string'
-            ? rawCall.name.trim()
-            : '';
+  const normalizedCalls: NormalizedModelToolCall[] = [];
 
-        if (!name) {
-          return undefined;
-        }
+  for (const rawCall of rawCalls) {
+    const name =
+      typeof rawCall?.name === 'string'
+        ? rawCall.name.trim()
+        : '';
 
-        const args =
-          rawCall?.arguments ??
-          rawCall?.args ??
-          rawCall?.parameters ??
-          rawCall?.params ??
-          {};
+    if (!name) {
+      continue;
+    }
 
-        const normalized:
-          NormalizedModelToolCall = {
-          name,
-          arguments:
-            normalizeToolArguments(
-              args
-            ),
-        };
+    const args =
+      rawCall?.arguments ??
+      rawCall?.args ??
+      rawCall?.parameters ??
+      rawCall?.params ??
+      {};
 
-        const id =
-          typeof rawCall?.id === 'string'
-            ? rawCall.id
-            : typeof rawCall?.callId === 'string'
-              ? rawCall.callId
-              : undefined;
+    const normalized: NormalizedModelToolCall = {
+      name,
+      arguments: normalizeToolArguments(args),
+    };
 
-        if (id) {
-          normalized.id = id;
-        }
+    const id =
+      typeof rawCall?.id === 'string'
+        ? rawCall.id
+        : typeof rawCall?.callId === 'string'
+          ? rawCall.callId
+          : undefined;
 
-        return normalized;
-      }
-    )
-    .filter(
-      (
-        value
-      ): value is NormalizedModelToolCall =>
-        value !== undefined
-    );
+    if (id) {
+      normalized.id = id;
+    }
+
+    normalizedCalls.push(normalized);
+  }
+
+  return normalizedCalls;
 }
 
 function buildAvailableAgentTools(): ModelToolDefinition[] {
@@ -551,6 +547,9 @@ function buildAvailableAgentTools(): ModelToolDefinition[] {
         ),
       requiresApproval:
         Boolean(tool.requiresApproval),
+      parameters: tool.parameters,
+      category: tool.category,
+      supportsParallel: tool.supportsParallel,
     })
   );
 }
@@ -1048,10 +1047,19 @@ async function executeModelToolCalls(
         tool.riskLevel
       ) === 'critical';
 
+    const approvedAction =
+      context.metadata?.approvedAction;
+
+    const approvedActionMatches =
+      approvedAction &&
+      approvedAction.toolName === toolName &&
+      safeJsonStringify(
+        normalizeToolArguments(approvedAction.params)
+      ) === safeJsonStringify(args);
+
     const approved =
-      Boolean(
-        context.metadata?.approved
-      );
+      Boolean(context.metadata?.approved) ||
+      Boolean(approvedActionMatches);
 
     if (
       approvalRequired &&
@@ -1182,6 +1190,8 @@ TOOL CALLING RULES:
 - Stop calling tools once the user's goal has been satisfied.
 - Never claim execution of a tool unless the runtime provides its result.
 - Critical / EXECUTE actions require approval.
+- When a tool exposes a parameter schema, follow it exactly.
+- Prefer one precise tool call over speculative or redundant calls.
 `;
 }
 
@@ -1420,6 +1430,7 @@ export async function executeAgent(
 
   const context: AgentContext = {
     ...suppliedContext,
+    requestId,
 
     conversationId:
       request.conversationId ||
@@ -1437,6 +1448,10 @@ export async function executeAgent(
     metadata: {
       ...(suppliedContext.metadata || {}),
       ...(request.metadata || {}),
+      ...(request.approvedAction
+        ? { approvedAction: request.approvedAction }
+        : {}),
+      requestStream: Boolean(request.stream),
     },
   };
 
@@ -1685,7 +1700,8 @@ export async function executeAgent(
 
   const history =
     buildHistory(
-      context
+      context,
+      options.maxHistoryMessages
     );
 
   const availableAgentTools =
@@ -2091,11 +2107,26 @@ export async function executeAgent(
       'I reached the execution limit before completing every required step. The completed backend operations are reflected in the tool results.';
   }
 
-  finalContent =
+  const generatedFinalContent =
     buildFallbackContent(
       finalModelResult,
       toolResults
     );
+
+  if (generatedFinalContent) {
+    finalContent = generatedFinalContent;
+  }
+
+  if (loopTerminatedByLimit) {
+    const limitNotice =
+      'I reached the agent execution limit before completing every requested step.';
+
+    if (!finalContent.includes(limitNotice)) {
+      finalContent = finalContent
+        ? `${finalContent}\n\n${limitNotice}`
+        : limitNotice;
+    }
+  }
 
   emit(onEvent, {
     type: 'content',

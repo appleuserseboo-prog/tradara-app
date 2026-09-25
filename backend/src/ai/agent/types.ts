@@ -60,8 +60,28 @@ export type AgentEventType =
   | 'complete'
   | 'error';
 
+export type AgentToolRiskLevel = 'low' | 'medium' | 'high' | 'critical';
+
+export type AgentToolCategory =
+  | 'context'
+  | 'marketplace'
+  | 'research'
+  | 'web'
+  | 'file'
+  | 'media'
+  | 'developer'
+  | 'marketing'
+  | 'finance'
+  | 'security'
+  | 'communication'
+  | 'automation'
+  | 'system'
+  | 'other';
+
+export type AgentMessageRole = 'user' | 'assistant' | 'system' | 'tool';
+
 export interface AgentMessage {
-  role: 'user' | 'assistant' | 'system' | 'tool';
+  role: AgentMessageRole;
   content: string;
   timestamp?: string;
   metadata?: Record<string, any>;
@@ -96,6 +116,8 @@ export interface AgentUserContext {
   name?: string;
   email?: string;
   role?: string;
+  permissions?: string[];
+  storeId?: string;
   preferences?: Record<string, any>;
   metadata?: Record<string, any>;
 }
@@ -107,22 +129,40 @@ export interface AgentProjectContext {
   metadata?: Record<string, any>;
 }
 
+export interface AgentMemoryEntry {
+  key: string;
+  value: string;
+  category?: string;
+  source?: string;
+  confidence?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface AgentArtifact {
+  id?: string;
+  name: string;
+  mimeType: string;
+  url?: string;
+  path?: string;
+  size?: number;
+  createdAt?: string;
+  metadata?: Record<string, any>;
+}
+
 export interface AgentContext {
   conversationId?: string;
   taskId?: string;
+  requestId?: string;
   user?: AgentUserContext;
   product?: AgentProductContext;
   project?: AgentProjectContext;
 
   messages?: AgentMessage[];
-
   attachments?: AgentAttachment[];
-
-  memory?: Array<{
-    key: string;
-    value: string;
-    category?: string;
-  }>;
+  memory?: AgentMemoryEntry[];
+  artifacts?: AgentArtifact[];
 
   globalContext?: Record<string, any>;
   metadata?: Record<string, any>;
@@ -166,7 +206,11 @@ export interface AgentPlanStep {
   tool?: string;
   status: AgentExecutionStatus;
   dependsOn?: string[];
+  startedAt?: string;
+  completedAt?: string;
   result?: any;
+  error?: string;
+  metadata?: Record<string, any>;
 }
 
 export interface AgentPlan {
@@ -175,12 +219,19 @@ export interface AgentPlan {
   agent: TradaraAgentType;
   steps: AgentPlanStep[];
   requiresApproval?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  metadata?: Record<string, any>;
 }
 
 export interface AgentToolCall {
   id: string;
   name: string;
   args: Record<string, any>;
+  requestedAt?: string;
+  riskLevel?: AgentToolRiskLevel;
+  requiresApproval?: boolean;
+  metadata?: Record<string, any>;
 }
 
 export interface AgentToolResult {
@@ -190,6 +241,8 @@ export interface AgentToolResult {
   result?: any;
   error?: string;
   durationMs?: number;
+  completedAt?: string;
+  metadata?: Record<string, any>;
 }
 
 export interface AgentVerification {
@@ -200,6 +253,13 @@ export interface AgentVerification {
     title?: string;
     url?: string;
     type?: string;
+    retrievedAt?: string;
+    metadata?: Record<string, any>;
+  }>;
+  checks?: Array<{
+    name: string;
+    passed: boolean;
+    details?: string;
   }>;
 }
 
@@ -221,6 +281,8 @@ export interface AgentResponse {
   toolResults?: AgentToolResult[];
 
   verification?: AgentVerification;
+
+  artifacts?: AgentArtifact[];
 
   requiresApproval?: boolean;
 
@@ -271,14 +333,40 @@ export interface AgentEvent {
   error?: string;
 }
 
+export interface AgentToolParameterSchema {
+  type: string;
+  description?: string;
+  required?: boolean;
+  enum?: string[];
+  properties?: Record<string, AgentToolParameterSchema>;
+  items?: AgentToolParameterSchema;
+  additionalProperties?: boolean;
+}
+
+export interface AgentToolParameters {
+  type: 'object';
+  properties: Record<string, AgentToolParameterSchema>;
+  required?: string[];
+  additionalProperties?: boolean;
+}
+
 export interface AgentToolDefinition {
   name: string;
 
   description: string;
 
-  riskLevel: 'low' | 'medium' | 'high' | 'critical';
+  riskLevel: AgentToolRiskLevel;
 
   requiresApproval?: boolean;
+
+  category?: AgentToolCategory;
+  tags?: string[];
+  parameters?: AgentToolParameters;
+  returns?: AgentToolParameterSchema;
+  supportsParallel?: boolean;
+  timeoutMs?: number;
+  enabled?: boolean;
+  metadata?: Record<string, any>;
 
   execute: (
     args: Record<string, any>,
@@ -294,4 +382,7 @@ export interface AgentRuntimeOptions {
   enableTools?: boolean;
   enableMemory?: boolean;
   executeActions?: boolean;
+  allowParallelTools?: boolean;
+  toolTimeoutMs?: number;
+  maxHistoryMessages?: number;
 }
