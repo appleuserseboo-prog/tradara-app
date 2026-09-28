@@ -143,146 +143,238 @@ export class AiSalesService {
    * Helper function to sanitize AI responses without destroying
    * legitimate Markdown structure.
    */
-  private static sanitizeMarkdownOutput(
+  private static sanitizeResponse(
     text: string
   ): string {
     if (!text) {
       return '';
     }
 
-    let sanitized = text
+    return String(text)
       .replace(/\r\n/g, '\n')
-      .replace(/\u0000/g, '');
-
-    sanitized = sanitized.replace(
-      /^\s*[*]\s*$/gm,
-      ''
-    );
-
-    sanitized = sanitized.replace(
-      /\n{4,}/g,
-      '\n\n\n'
-    );
-
-    return sanitized.trim();
+      .replace(/\u0000/g, '')
+      .trim();
   }
 
   /**
-   * Perception Module.
-   *
-   * This is used for commerce intelligence and negotiation behavior.
-   * It is NOT used as the gatekeeper for general AI questions.
+   * Detect buyer perception from a message.
    */
   private static perceiveBuyerIntent(
-    message: string,
-    offeredPrice?: number,
-    listPrice: number = 0
+    message: string
   ): BuyerPerception {
-    const msgLower =
-      message.toLowerCase().trim();
+    const normalized =
+      String(message || '')
+        .trim()
+        .toLowerCase();
 
-    let sentiment: BuyerPerception['sentiment'] =
+    const hasAny = (
+      words: string[]
+    ) =>
+      words.some((word) =>
+        normalized.includes(word)
+      );
+
+    let sentiment:
+      | 'positive'
+      | 'neutral'
+      | 'negative'
+      | 'frustrated'
+      | 'eager' =
       'neutral';
 
-    let urgency: BuyerPerception['urgency'] =
-      'medium';
-
-    let priceSensitivity: BuyerPerception['priceSensitivity'] =
-      'medium';
-
-    let detectedIntent: BuyerPerception['detectedIntent'] =
-      'inquiry';
-
     if (
-      /\b(urgent|today|now|asap|fast|quickly)\b/i.test(
-        msgLower
-      )
-    ) {
-      urgency = 'high';
-      sentiment = 'eager';
-    }
-
-    if (
-      /\b(expensive|too high|ridiculous|scam|unreasonable)\b/i.test(
-        msgLower
-      )
+      hasAny([
+        'angry',
+        'annoyed',
+        'ridiculous',
+        'terrible',
+        'worst',
+        'scam',
+        'not happy'
+      ])
     ) {
       sentiment = 'frustrated';
-      priceSensitivity = 'high';
     } else if (
-      /\b(love|great|perfect|interested|nice|beautiful)\b/i.test(
-        msgLower
-      )
+      hasAny([
+        'love',
+        'great',
+        'perfect',
+        'nice',
+        'good',
+        'interested',
+        'i want',
+        'i like'
+      ])
     ) {
       sentiment = 'positive';
     } else if (
-      /\b(hate|bad|terrible|disappointed)\b/i.test(
-        msgLower
-      )
+      hasAny([
+        'buy now',
+        'take it',
+        'send',
+        'checkout',
+        'ready',
+        'i will buy',
+        'i want to buy'
+      ])
+    ) {
+      sentiment = 'eager';
+    } else if (
+      hasAny([
+        'no',
+        'cannot',
+        'cant',
+        "can't",
+        'too expensive',
+        'not affordable',
+        'bad'
+      ])
     ) {
       sentiment = 'negative';
     }
 
+    const urgency =
+      hasAny([
+        'urgent',
+        'today',
+        'now',
+        'asap',
+        'immediately',
+        'quickly'
+      ])
+        ? 'high'
+        : hasAny([
+            'soon',
+            'this week',
+            'tomorrow'
+          ])
+        ? 'medium'
+        : 'low';
+
+    const priceSensitivity =
+      hasAny([
+        'cheap',
+        'cheaper',
+        'discount',
+        'reduce',
+        'lower',
+        'last price',
+        'best price',
+        'lowest',
+        'budget',
+        'afford',
+        'expensive',
+        'negotiate',
+        'bargain',
+        'offer'
+      ])
+        ? 'high'
+        : hasAny([
+            'price',
+            'cost',
+            'how much'
+          ])
+        ? 'medium'
+        : 'low';
+
+    let detectedIntent:
+      | 'inquiry'
+      | 'bargain'
+      | 'specs_check'
+      | 'human_request'
+      | 'bulk_inquiry'
+      | 'closing'
+      | 'general' =
+      'general';
+
     if (
-      offeredPrice !== undefined ||
-      /\b(bottom|negotiable|last price|discount|cheaper|reduce|offer|how much|price)\b/i.test(
-        msgLower
-      )
+      hasAny([
+        'human',
+        'agent',
+        'person',
+        'seller',
+        'representative',
+        'talk to someone'
+      ])
+    ) {
+      detectedIntent = 'human_request';
+    } else if (
+      hasAny([
+        'bulk',
+        'wholesale',
+        'quantity',
+        'pieces',
+        'units',
+        'how many'
+      ])
+    ) {
+      detectedIntent = 'bulk_inquiry';
+    } else if (
+      hasAny([
+        'buy',
+        'purchase',
+        'checkout',
+        'payment',
+        'take it',
+        'deal'
+      ])
+    ) {
+      detectedIntent = 'closing';
+    } else if (
+      hasAny([
+        'spec',
+        'specification',
+        'size',
+        'colour',
+        'color',
+        'material',
+        'condition',
+        'warranty',
+        'feature',
+        'features'
+      ])
+    ) {
+      detectedIntent = 'specs_check';
+    } else if (
+      hasAny([
+        'negotiate',
+        'discount',
+        'reduce',
+        'lower',
+        'offer',
+        'cheaper',
+        'last price',
+        'best price',
+        'bargain'
+      ])
     ) {
       detectedIntent = 'bargain';
-      priceSensitivity = 'high';
     } else if (
-      /\b(spec|specs|condition|warranty|authentic|original|location|city|area|features)\b/i.test(
-        msgLower
-      )
+      hasAny([
+        'price',
+        'cost',
+        'how much',
+        'available',
+        'availability'
+      ])
     ) {
-      detectedIntent =
-        'specs_check';
-    } else if (
-      /\b(wholesale|bulk|quantity|many units|large order)\b/i.test(
-        msgLower
-      )
-    ) {
-      detectedIntent =
-        'bulk_inquiry';
-    } else if (
-      /\b(human|agent|call|seller|person|representative)\b/i.test(
-        msgLower
-      )
-    ) {
-      detectedIntent =
-        'human_request';
-    } else if (
-      /\b(buy|take it|deal|pay|checkout|purchase)\b/i.test(
-        msgLower
-      )
-    ) {
-      detectedIntent =
-        'closing';
-
-      urgency = 'high';
-    } else {
-      detectedIntent =
-        'general';
+      detectedIntent = 'inquiry';
     }
 
-    let estimatedMaxBudget:
-      | number
-      | undefined;
+    const budgetMatch =
+      normalized.match(
+        /(?:₦|ngn|n)\s?([0-9][0-9,]*(?:\.[0-9]+)?)/i
+      );
 
-    if (
-      offeredPrice !== undefined
-    ) {
-      estimatedMaxBudget =
-        offeredPrice;
-    } else if (
-      listPrice > 0 &&
-      priceSensitivity ===
-        'high'
-    ) {
-      estimatedMaxBudget =
-        listPrice * 0.85;
-    }
+    const estimatedMaxBudget =
+      budgetMatch
+        ? Number(
+            budgetMatch[1].replace(
+              /,/g,
+              ''
+            )
+          )
+        : undefined;
 
     return {
       sentiment,
@@ -294,94 +386,121 @@ export class AiSalesService {
   }
 
   /**
-   * Retrieve marketplace intelligence.
+   * Gather marketplace intelligence.
+   *
+   * IMPORTANT:
+   * aiNegotiationSession uses Prisma relations for Item and Buyer.
+   * Do not use scalar itemId/buyerId fields when the schema exposes
+   * only the relation fields.
    */
   private static async gatherMarketplaceIntelligence(
     itemId?: string,
     buyerId?: string
   ): Promise<MarketplaceIntelligence> {
     try {
-      if (
-        !itemId ||
-        itemId ===
-          'general-ai-session'
-      ) {
-        return {
-          itemHistoricalConversions: 0,
-          averageAgreedDiscountPercent: 0,
-          buyerPastNegotiationCount: 0,
-          buyerSuccessfulDeals: 0,
-          categoryDemandScore: 0.5
-        };
-      }
-
-      const itemPastSessions =
-        await (
-          prisma as any
-        ).aiNegotiationSession.findMany(
-          {
-            where: {
-              itemId,
-              status: 'agreed'
-            },
-            take: 100
-          }
-        );
-
-      const itemHistoricalConversions =
-        itemPastSessions.length;
-
+      let itemHistoricalConversions = 0;
       let averageAgreedDiscountPercent = 0;
 
-      if (
-        itemHistoricalConversions >
-        0
-      ) {
-        const totalDiscounts =
-          itemPastSessions.reduce(
-            (
-              acc: number,
-              session: any
-            ) => {
-              if (
-                session.agreedPrice &&
-                session.currentOffer &&
-                session.currentOffer > 0
-              ) {
-                return (
-                  acc +
-                  ((session.currentOffer -
-                    session.agreedPrice) /
-                    session.currentOffer)
-                );
-              }
+      if (itemId) {
+        const sessions =
+          await (prisma as any)
+            .aiNegotiationSession.findMany({
+              where: {
+                item: {
+                  is: {
+                    id: itemId
+                  }
+                },
+                status: 'agreed'
+              },
+              take: 200
+            });
 
-              return acc;
-            },
-            0
-          );
+        itemHistoricalConversions =
+          sessions.length;
 
-        averageAgreedDiscountPercent =
-          (totalDiscounts /
-            itemHistoricalConversions) *
-          100;
+        if (
+          sessions.length > 0
+        ) {
+          const discounts =
+            sessions
+              .map(
+                (session: any) => {
+                  const listed =
+                    Number(
+                      session.listedPrice ??
+                        session.originalPrice ??
+                        0
+                    );
+
+                  const agreed =
+                    Number(
+                      session.agreedPrice ??
+                        session.finalPrice ??
+                        0
+                    );
+
+                  if (
+                    listed <= 0 ||
+                    agreed <= 0
+                  ) {
+                    return 0;
+                  }
+
+                  return Math.max(
+                    0,
+                    ((listed -
+                      agreed) /
+                      listed) *
+                      100
+                  );
+                }
+              )
+              .filter(
+                (value: number) =>
+                  Number.isFinite(
+                    value
+                  )
+              );
+
+          if (
+            discounts.length > 0
+          ) {
+            averageAgreedDiscountPercent =
+              discounts.reduce(
+                (
+                  total: number,
+                  value: number
+                ) =>
+                  total + value,
+                0
+              ) /
+              discounts.length;
+          }
+        }
       }
 
-      let buyerPastNegotiationCount = 0;
-      let buyerSuccessfulDeals = 0;
+      let buyerPastNegotiationCount =
+        0;
+
+      let buyerSuccessfulDeals =
+        0;
 
       if (buyerId) {
         const buyerSessions =
-          await (
-            prisma as any
-          ).aiNegotiationSession.findMany(
-            {
-              where: {
-                buyerId
-              },
-              take: 200
-            }
-          );
+          await (prisma as any)
+            .aiNegotiationSession.findMany(
+              {
+                where: {
+                  buyer: {
+                    is: {
+                      id: buyerId
+                    }
+                  }
+                },
+                take: 200
+              }
+            );
 
         buyerPastNegotiationCount =
           buyerSessions.length;
@@ -455,7 +574,8 @@ export class AiSalesService {
             detectedIntent:
               perception.detectedIntent,
             dealStatus,
-            timestamp: new Date()
+            timestamp:
+              new Date()
           }
         });
       }
@@ -469,10 +589,6 @@ export class AiSalesService {
 
   /**
    * Convert Tradara tool definitions into Gemini function declarations.
-   *
-   * The parameters are intentionally passed as `any` because the
-   * application supports multiple tool-schema representations and
-   * @google/genai versions can differ in their TypeScript declarations.
    */
   private static buildGeminiToolDeclarations(
     tools: AiSalesToolDefinition[] = []
@@ -482,8 +598,8 @@ export class AiSalesService {
     }
 
     const declarations: any[] = [];
-
-    const seen = new Set<string>();
+    const seen =
+      new Set<string>();
 
     for (const tool of tools) {
       if (!tool) {
@@ -491,7 +607,8 @@ export class AiSalesService {
       }
 
       const name =
-        typeof tool.name === 'string'
+        typeof tool.name ===
+        'string'
           ? tool.name.trim()
           : '';
 
@@ -506,40 +623,41 @@ export class AiSalesService {
       seen.add(name);
 
       const description =
-        typeof tool.description === 'string' &&
+        typeof tool.description ===
+          'string' &&
         tool.description.trim()
           ? tool.description.trim()
-          : `Execute the ${name} tool.`;
+          : `Execute Tradara tool ${name}.`;
 
-      let parameters =
-        tool.parameters;
+      const declaration: any = {
+        name,
+        description
+      };
 
-      if (
-        !parameters ||
-        typeof parameters !== 'object'
-      ) {
-        parameters = {
+      if (tool.parameters) {
+        declaration.parameters =
+          tool.parameters;
+      } else {
+        declaration.parameters = {
           type: 'object',
           properties: {}
         };
       }
 
-      declarations.push({
-        name,
-        description,
-        parameters
-      });
+      declarations.push(
+        declaration
+      );
     }
 
     return declarations;
   }
 
   /**
-   * Build tool execution context that can be injected into the
-   * model conversation after an orchestrator executes a tool.
+   * Convert executed tool results into model-readable context.
    */
   private static buildToolResultContext(
-    toolResults: ProcessChatMessageInput['toolResults'] = []
+    toolResults: ProcessChatMessageInput['toolResults'] =
+      []
   ): string {
     if (
       !Array.isArray(toolResults) ||
@@ -548,173 +666,110 @@ export class AiSalesService {
       return '';
     }
 
-    const lines: string[] = [
-      'TOOL EXECUTION RESULTS:',
-      'The following results were returned by tools actually executed by the application.'
-    ];
-
-    for (const toolResult of toolResults) {
-      if (!toolResult) {
-        continue;
-      }
-
-      lines.push(
-        `Tool: ${toolResult.name || 'unknown'}`
+    const safeResults =
+      toolResults.map(
+        (toolResult) => ({
+          callId:
+            toolResult.callId,
+          tool:
+            toolResult.name,
+          success:
+            toolResult.success !==
+            false,
+          result:
+            toolResult.result,
+          error:
+            toolResult.error
+        })
       );
 
-      if (
-        toolResult.callId
-      ) {
-        lines.push(
-          `Call ID: ${toolResult.callId}`
-        );
-      }
+    return `
+REAL BACKEND TOOL RESULTS
 
-      lines.push(
-        `Success: ${
-          toolResult.success === true
-            ? 'true'
-            : toolResult.success === false
-            ? 'false'
-            : 'unknown'
-        }`
-      );
+The following results came from actual backend tool execution.
 
-      if (
-        toolResult.error
-      ) {
-        lines.push(
-          `Error: ${toolResult.error}`
-        );
-      }
+${JSON.stringify(
+  safeResults,
+  null,
+  2
+)}
 
-      if (
-        toolResult.result !==
-        undefined
-      ) {
-        let serialized = '';
-
-        try {
-          serialized =
-            typeof toolResult.result ===
-            'string'
-              ? toolResult.result
-              : JSON.stringify(
-                  toolResult.result
-                );
-        } catch {
-          serialized =
-            String(
-              toolResult.result
-            );
-        }
-
-        lines.push(
-          `Result: ${serialized}`
-        );
-      }
-
-      lines.push('');
-    }
-
-    return lines.join('\n').trim();
+IMPORTANT:
+- Treat these results as authoritative for the corresponding operations.
+- Do not claim a tool executed if there is no corresponding successful result.
+- Do not invent fields or values that are absent from the results.
+- If a tool failed, explain the failure honestly.
+`;
   }
 
   /**
-   * Extract structured function calls from a Gemini response.
-   *
-   * The SDK exposes functionCalls() on some versions. Other versions
-   * expose functionCall parts inside candidates. This implementation
-   * supports both shapes so the service is more resilient.
+   * Extract Gemini function calls from multiple response shapes.
    */
   private static extractToolCalls(
     response: any
   ): AiSalesToolCall[] {
-    const calls: AiSalesToolCall[] = [];
-    const seen = new Set<string>();
+    const calls: AiSalesToolCall[] =
+      [];
+
+    const seen =
+      new Set<string>();
 
     const addCall = (
-      rawCall: any
-    ): void => {
-      if (!rawCall) {
+      call: any
+    ) => {
+      if (!call) {
         return;
       }
 
       const name =
-        rawCall.name ||
-        rawCall.functionCall?.name;
+        typeof call.name ===
+        'string'
+          ? call.name.trim()
+          : '';
 
-      if (
-        typeof name !== 'string' ||
-        !name.trim()
-      ) {
+      if (!name) {
         return;
       }
 
-      const rawArguments =
-        rawCall.args ??
-        rawCall.arguments ??
-        rawCall.functionCall?.args ??
-        rawCall.functionCall?.arguments ??
-        {};
+      const args =
+        call.args &&
+        typeof call.args ===
+          'object'
+          ? call.args
+          : call.arguments &&
+              typeof call.arguments ===
+                'object'
+          ? call.arguments
+          : {};
 
-      let args: Record<string, any> = {};
-
-      if (
-        rawArguments &&
-        typeof rawArguments ===
-          'object' &&
-        !Array.isArray(rawArguments)
-      ) {
-        args = rawArguments;
-      } else if (
-        typeof rawArguments ===
+      const id =
+        typeof call.id ===
         'string'
-      ) {
-        try {
-          const parsed =
-            JSON.parse(
-              rawArguments
-            );
-
-          if (
-            parsed &&
-            typeof parsed ===
-              'object' &&
-            !Array.isArray(parsed)
-          ) {
-            args = parsed;
-          }
-        } catch {
-          args = {};
-        }
-      }
-
-      const callId =
-        rawCall.id ||
-        rawCall.callId ||
-        `tool_call_${Date.now()}_${Math.random()
-          .toString(36)
-          .slice(2, 10)}`;
-
-      const normalizedId =
-        String(callId);
+          ? call.id
+          : `call_${name}_${Date.now()}_${Math.random()
+              .toString(36)
+              .slice(2, 8)}`;
 
       const duplicateKey =
-        `${normalizedId}:${name}`;
+        `${id}:${name}`;
 
       if (
-        seen.has(duplicateKey)
+        seen.has(
+          duplicateKey
+        )
       ) {
         return;
       }
 
-      seen.add(duplicateKey);
+      seen.add(
+        duplicateKey
+      );
 
       calls.push({
-        id: normalizedId,
-        name: name.trim(),
-        arguments: args
+        id,
+        name,
+        arguments:
+          args
       });
     };
 
@@ -731,9 +786,7 @@ export class AiSalesService {
             functionCalls
           )
         ) {
-          for (
-            const call of functionCalls
-          ) {
+          for (const call of functionCalls) {
             addCall(call);
           }
         }
@@ -783,7 +836,7 @@ export class AiSalesService {
   }
 
   /**
-   * Extract text while safely ignoring function-call-only parts.
+   * Extract response text while safely ignoring function-call-only parts.
    */
   private static extractResponseText(
     response: any
@@ -795,7 +848,8 @@ export class AiSalesService {
       return response.text;
     }
 
-    const textParts: string[] = [];
+    const textParts: string[] =
+      [];
 
     const candidates =
       Array.isArray(
@@ -824,7 +878,9 @@ export class AiSalesService {
       }
     }
 
-    return textParts.join('\n');
+    return textParts.join(
+      '\n'
+    );
   }
 
   /**
@@ -852,16 +908,13 @@ export class AiSalesService {
   }
 
   /**
-   * Generate content with a conservative model fallback.
+   * Generate content with a resilient Gemini model fallback.
    *
-   * Do not list models that may not exist. The primary model can
-   * be changed with GEMINI_MODEL without changing application code.
+   * The timeout prevents one overloaded model from blocking the
+   * entire Tradara request for several minutes.
    *
-   * Current stable Gemini Flash models are preferred.
-   *
-   * The fallback chain intentionally avoids Gemini 2.5 Flash because
-   * the current deployed API account has already returned HTTP 404
-   * for that model.
+   * GEMINI_MODEL may be supplied to choose the preferred model.
+   * GEMINI_TIMEOUT_MS may be supplied to change the timeout.
    */
   private static async generateWithModelFallback(
     params: {
@@ -882,7 +935,8 @@ export class AiSalesService {
       'gemini-3.5-flash'
     ];
 
-    const modelsToTry: string[] = [];
+    const modelsToTry: string[] =
+      [];
 
     if (
       configuredModel &&
@@ -907,23 +961,69 @@ export class AiSalesService {
       }
     }
 
+    const timeoutMsRaw =
+      Number(
+        process.env.GEMINI_TIMEOUT_MS ||
+          45000
+      );
+
+    const timeoutMs =
+      Number.isFinite(
+        timeoutMsRaw
+      ) &&
+      timeoutMsRaw > 0
+        ? timeoutMsRaw
+        : 45000;
+
     let lastError: any;
 
     for (const modelName of modelsToTry) {
+      let timeoutHandle:
+        ReturnType<typeof setTimeout> |
+        undefined;
+
       try {
         console.info(
           `[Gemini] Attempting model: ${modelName}`
         );
 
-        return await ai.models.generateContent(
-          {
-            model: modelName,
+        const generationPromise =
+          ai.models.generateContent({
+            model:
+              modelName,
             contents:
               params.contents,
             config:
               params.config
-          }
-        );
+          });
+
+        const timeoutPromise =
+          new Promise<never>(
+            (
+              _resolve,
+              reject
+            ) => {
+              timeoutHandle =
+                setTimeout(
+                  () => {
+                    reject(
+                      new Error(
+                        `Gemini model ${modelName} timed out after ${timeoutMs}ms.`
+                      )
+                    );
+                  },
+                  timeoutMs
+                );
+            }
+          );
+
+        const response =
+          await Promise.race([
+            generationPromise,
+            timeoutPromise
+          ]);
+
+        return response;
       } catch (error: any) {
         console.warn(
           `[Gemini Model Warning] ${modelName} failed:`,
@@ -931,7 +1031,16 @@ export class AiSalesService {
             error
         );
 
-        lastError = error;
+        lastError =
+          error;
+      } finally {
+        if (
+          timeoutHandle
+        ) {
+          clearTimeout(
+            timeoutHandle
+          );
+        }
       }
     }
 
@@ -976,7 +1085,8 @@ export class AiSalesService {
       ...databaseMessages.map(
         (item: any) => ({
           role:
-            item.sender === 'ai' ||
+            item.sender ===
+              'ai' ||
             item.role ===
               'assistant' ||
             item.role ===
@@ -991,52 +1101,63 @@ export class AiSalesService {
       )
     ];
 
-    const deduplicated: Array<{
-      role: string;
-      text: string;
-    }> = [];
+    const cleaned =
+      normalized
+        .filter(
+          (item) =>
+            typeof item.text ===
+              'string' &&
+            item.text.trim()
+        )
+        .slice(-30);
 
-    for (const item of normalized) {
-      if (!item.text.trim()) {
-        continue;
-      }
-
-      const previous =
-        deduplicated[
-          deduplicated.length -
-            1
-        ];
-
-      if (
-        previous &&
-        previous.role ===
-          item.role &&
-        previous.text ===
-          item.text
-      ) {
-        continue;
-      }
-
-      deduplicated.push(
-        item
-      );
+    if (
+      cleaned.length === 0
+    ) {
+      return 'No previous conversation is available.';
     }
 
-    return deduplicated
-      .slice(-20)
+    return cleaned
       .map(
         (item) =>
-          `${item.role}: ${item.text}`
+          `${item.role}: ${item.text.trim()}`
       )
       .join('\n');
   }
 
   /**
-   * Process a Tradara AI interaction.
+   * Extract an item ID safely.
+   */
+  private static resolveItemId(
+    itemId?: string
+  ): string | undefined {
+    if (
+      typeof itemId !==
+      'string'
+    ) {
+      return undefined;
+    }
+
+    const value =
+      itemId.trim();
+
+    if (
+      !value ||
+      value ===
+        'general-ai-session'
+    ) {
+      return undefined;
+    }
+
+    return value;
+  }
+
+  /**
+   * Main AI message processor.
    */
   public static async processMessage(
     input: ProcessChatMessageInput
-  ) {
+  ): Promise<any> {
     const {
       itemId,
       buyerSession,
@@ -1044,482 +1165,195 @@ export class AiSalesService {
       message,
       offeredPrice,
       quantity = 1,
-      systemPrompt:
-        customSystemPrompt,
-      sessionId:
-        explicitSessionId,
+      systemPrompt,
+      sessionId,
       history = [],
+      userConfirmationConfirmed,
+      pendingTool,
       agentTools = [],
       toolResults = []
     } = input;
 
     const cleanMessage =
-      String(
-        message || ''
-      ).trim();
+      typeof message ===
+      'string'
+        ? message.trim()
+        : '';
 
     if (!cleanMessage) {
       throw new Error(
-        'Message cannot be empty.'
+        'A valid message is required.'
       );
     }
 
-    const isGeneralSession =
-      !itemId ||
-      itemId ===
-        'general-ai-session';
+    if (
+      !buyerSession ||
+      typeof buyerSession !==
+        'string'
+    ) {
+      throw new Error(
+        'buyerSession is required.'
+      );
+    }
 
-    let item: any = null;
+    const resolvedBuyerSession =
+      buyerSession.trim();
 
-    if (!isGeneralSession) {
+    const resolvedBuyerId =
+      buyerId &&
+      buyerId !==
+        'guest_user'
+        ? String(
+            buyerId
+          ).trim()
+        : undefined;
+
+    const resolvedItemId =
+      this.resolveItemId(
+        itemId
+      );
+
+    let activeItem: any =
+      null;
+
+    let aiConfig: any =
+      null;
+
+    let session: any =
+      null;
+
+    let systemInstruction =
+      '';
+
+    // ==========================================
+    // Resolve product context safely
+    // ==========================================
+
+    if (resolvedItemId) {
       try {
-        item =
+        activeItem =
           await (
             prisma as any
           ).item.findUnique({
             where: {
-              id: itemId
+              id: resolvedItemId
             },
             include: {
               aiConfig: true,
               seller: true
             }
           });
+
+        if (
+          activeItem
+        ) {
+          aiConfig =
+            activeItem.aiConfig ||
+            null;
+        } else {
+          console.warn(
+            `[AI Controller] Item ${resolvedItemId} was not found. Continuing as general AI.`
+          );
+        }
       } catch (error) {
         console.warn(
-          'Item lookup failed:',
+          '[AI Controller] Product lookup failed; continuing as general AI:',
           error
         );
       }
     }
 
-    const dbItemId =
-      isGeneralSession
-        ? null
-        : itemId;
-
-    let session: any = null;
-
-    if (explicitSessionId) {
-      try {
-        session =
-          await (
-            prisma as any
-          ).aiNegotiationSession.findUnique(
-            {
-              where: {
-                id: explicitSessionId
-              },
-              include: {
-                messages: {
-                  orderBy: {
-                    createdAt:
-                      'asc'
-                  }
-                }
-              }
-            }
-          );
-      } catch {
-        session = null;
-      }
-    }
-
-    if (!session && buyerId) {
-      try {
-        session =
-          await (
-            prisma as any
-          ).aiNegotiationSession.findFirst(
-            {
-              where: {
-                buyerId,
-                itemId: dbItemId,
-                status: 'active'
-              },
-              orderBy: {
-                updatedAt:
-                  'desc'
-              },
-              include: {
-                messages: {
-                  orderBy: {
-                    createdAt:
-                      'asc'
-                  }
-                }
-              }
-            }
-          );
-      } catch {
-        session = null;
-      }
-    }
-
-    if (
-      !session &&
-      buyerSession
-    ) {
-      try {
-        session =
-          await (
-            prisma as any
-          ).aiNegotiationSession.findFirst(
-            {
-              where: {
-                buyerSession,
-                itemId: dbItemId
-              },
-              orderBy: {
-                updatedAt:
-                  'desc'
-              },
-              include: {
-                messages: {
-                  orderBy: {
-                    createdAt:
-                      'asc'
-                  }
-                }
-              }
-            }
-          );
-      } catch {
-        session = null;
-      }
-    }
-
-    if (!session) {
-      /*
-       * IMPORTANT:
-       * AiNegotiationSession does not have a "title" field in
-       * prisma/schema.prisma.
-       *
-       * The item relation is connected conditionally so that:
-       * - product conversations connect to the real Item record
-       * - general AI conversations do not require an Item
-       *
-       * This avoids sending itemId directly to create(), which can
-       * fail when the generated Prisma Client exposes the relation
-       * through the "item" nested create input.
-       */
-      const sessionData: any = {
-        buyerSession:
-          buyerSession ||
-          `anonymous_${Date.now()}`,
-        buyerId:
-          buyerId ||
-          null,
-        status:
-          'active'
-      };
-
-      if (
-        !isGeneralSession &&
-        dbItemId
-      ) {
-        sessionData.item = {
-          connect: {
-            id: dbItemId
-          }
-        };
-      }
-
-      session =
-        await (
-          prisma as any
-        ).aiNegotiationSession.create(
-          {
-            data: sessionData,
-            include: {
-              messages: true
-            }
-          }
-        );
-    } else if (
-      buyerId &&
-      !session.buyerId
-    ) {
-      await (
-        prisma as any
-      ).aiNegotiationSession.update(
-        {
-          where: {
-            id: session.id
-          },
-          data: {
-            buyerId
-          }
-        }
-      );
-    }
-
-    const perception =
-      this.perceiveBuyerIntent(
-        cleanMessage,
-        offeredPrice,
-        item?.price || 0
-      );
-
-    const intelligence =
-      await this.gatherMarketplaceIntelligence(
-        itemId,
-        buyerId
-      );
-
-    await (
-      prisma as any
-    ).aiChatMessage.create({
-      data: {
-        sessionId:
-          session.id,
-        sender: 'buyer',
-        message:
-          cleanMessage,
-        offerMade:
-          offeredPrice !==
-          undefined
-            ? offeredPrice
-            : null
-      }
-    });
-
-    if (
-      session.status ===
-        'transferred' ||
-      session.status ===
-        'human_agent'
-    ) {
-      const waitReply =
-        'A live agent has received your message and will respond shortly.';
-
-      const aiMessage =
-        await (
-          prisma as any
-        ).aiChatMessage.create({
-          data: {
-            sessionId:
-              session.id,
-            sender:
-              'system',
-            message:
-              waitReply
-          }
-        });
-
-      return {
-        sessionId:
-          session.id,
-        reply:
-          waitReply,
-        status:
-          session.status,
-        agreedPrice:
-          session.agreedPrice,
-        aiMessage,
-        perception,
-        intelligence,
-        toolCalls: []
-      };
-    }
-
-    const currentRound =
-      (session.roundCount ||
-        0) + 1;
-
-    let rawAiReply = '';
-
-    let dealStatus =
-      session.status ||
-      'active';
-
-    let agreedPrice =
-      session.agreedPrice;
-
-    let structuredToolCalls:
-      AiSalesToolCall[] = [];
-
-    const isAutoNegotiateActive =
-      Boolean(
-        item &&
-          item.aiConfig &&
-          item.aiConfig
-            .autoNegotiateEnabled
-      );
-
     // ==========================================
-    // Structured Product Offer
+    // Product-specific system prompt
     // ==========================================
 
     if (
-      offeredPrice !==
-        undefined &&
-      item
+      activeItem
     ) {
-      if (
-        !isAutoNegotiateActive
-      ) {
-        rawAiReply =
-          `Thank you for your offer of ${
-            item.currency ||
-            '₦'
-          }${offeredPrice.toLocaleString()}. This item is currently listed at ${
-            item.currency ||
-            '₦'
-          }${Number(
-            item.price
-          ).toLocaleString()}. The seller's automated negotiation is not enabled, so I cannot approve a discount automatically.`;
-      } else {
-        const result =
-          NegotiationEngine.processOffer(
-            offeredPrice,
-            currentRound,
-            {
-              minimumPrice:
-                item.aiConfig
-                  .minimumPrice ||
-                item.price,
-              targetPrice:
-                item.aiConfig
-                  .targetPrice ||
-                item.price,
-              walkawayPrice:
-                item.aiConfig
-                  .walkawayPrice ||
-                item.aiConfig
-                  .minimumPrice ||
-                item.price,
-              discountStepPercent:
-                item.aiConfig
-                  .discountStepPercent ??
-                5,
-              maxDiscountRounds:
-                item.aiConfig
-                  .maxDiscountRounds ??
-                3,
-              autoNegotiateEnabled:
-                item.aiConfig
-                  .autoNegotiateEnabled,
-              bulkMinQuantity:
-                item.aiConfig
-                  .bulkMinQuantity ||
-                0,
-              bulkDiscountPercent:
-                item.aiConfig
-                  .bulkDiscountPercent ||
-                0,
-              requestedQuantity:
-                quantity
-            }
-          );
+      const city =
+        activeItem.locationCity ||
+        activeItem.city ||
+        activeItem.seller?.city ||
+        'Not specified';
 
-        dealStatus =
-          result.status;
+      const area =
+        activeItem.locationArea ||
+        activeItem.area ||
+        activeItem.seller?.area ||
+        'Not specified';
 
-        if (result.accepted) {
-          agreedPrice =
-            offeredPrice;
+      const address =
+        activeItem.locationAddress ||
+        activeItem.pickupAddress ||
+        activeItem.seller?.address ||
+        'Available through Tradara chat';
 
-          rawAiReply =
-            `Great news! I can accept your offer of ${
-              item.currency ||
-              '₦'
-            }${offeredPrice.toLocaleString()} per unit for ${quantity} unit(s). Would you like to proceed with the purchase?`;
-        } else if (
-          result.counterOffer
-        ) {
-          rawAiReply =
-            `Thank you for your offer. The best price I can offer right now is ${
-              item.currency ||
-              '₦'
-            }${result.counterOffer.toLocaleString()} per unit.`;
-        } else {
-          rawAiReply =
-            result.message ||
-            'I cannot accept that offer at this time.';
-        }
-      }
-    } else {
-      // ==========================================
-      // General AI / Natural Language Layer
-      // ==========================================
+      const currency =
+        activeItem.currency ||
+        '₦';
 
-      const conversationContext =
-        this.buildConversationContext(
-          session.messages ||
-            [],
-          history
+      const listedPrice =
+        Number(
+          activeItem.price ||
+            0
         );
 
-      try {
-        let systemInstruction =
-          customSystemPrompt;
+      const minimumPrice =
+        Number(
+          aiConfig?.minimumPrice ??
+            activeItem.price ??
+            0
+        );
 
-        if (!systemInstruction) {
-          if (item) {
-            const city =
-              item.locationCity ||
-              item.city ||
-              item.seller?.city ||
-              'Not specified';
+      const targetPrice =
+        Number(
+          aiConfig?.targetPrice ??
+            activeItem.price ??
+            0
+        );
 
-            const area =
-              item.locationArea ||
-              item.area ||
-              item.seller?.area ||
-              'Not specified';
-
-            const address =
-              item.locationAddress ||
-              item.pickupAddress ||
-              item.seller?.address ||
-              'Available through Tradara chat';
-
-            systemInstruction = `
+      systemInstruction = `
 You are TRADARA AI, the intelligent assistant for the TRADARA marketplace.
 
 You are currently assisting a customer with:
-Product: ${
-              item.stockName ||
-              item.title ||
-              'this product'
-            }
-Listed price: ${
-              item.currency ||
-              '₦'
-            }${Number(
-              item.price || 0
-            ).toLocaleString()}
+
+PRODUCT:
+Name: ${
+        activeItem.stockName ||
+        activeItem.title ||
+        'this product'
+      }
+Item ID: ${
+        activeItem.id ||
+        resolvedItemId
+      }
+Listed price: ${currency}${listedPrice.toLocaleString()}
 Category: ${
-              item.category ||
-              'Not specified'
-            }
+        activeItem.category ||
+        'Not specified'
+      }
 
 PRODUCT INFORMATION:
 Description: ${
-              item.description ||
-              'Not specified'
-            }
+        activeItem.description ||
+        'Not specified'
+      }
 Specifications: ${
-              item.aiConfig
-                ?.specifications ||
-              'Not specified'
-            }
+        aiConfig?.specifications ||
+        'Not specified'
+      }
 Condition: ${
-              item.aiConfig
-                ?.condition ||
-              'Not specified'
-            }
+        aiConfig?.condition ||
+        'Not specified'
+      }
 Warranty: ${
-              item.aiConfig
-                ?.warrantyPeriod ||
-              'Not specified'
-            }
-FAQ: ${
-              item.aiConfig
-                ?.faqKnowledgeBase ||
-              'Not specified'
-            }
+        aiConfig?.warrantyPeriod ||
+        'Not specified'
+      }
+FAQ / Knowledge Base: ${
+        aiConfig?.faqKnowledgeBase ||
+        'Not specified'
+      }
 
 LOCATION:
 City: ${city}
@@ -1527,33 +1361,16 @@ Area: ${area}
 Pickup details: ${address}
 
 NEGOTIATION INFORMATION:
-Minimum automated price: ${
-              item.currency ||
-              '₦'
-            }${Number(
-              item.aiConfig
-                ?.minimumPrice ||
-                item.price ||
-                0
-            ).toLocaleString()}
-Target price: ${
-              item.currency ||
-              '₦'
-            }${Number(
-              item.aiConfig
-                ?.targetPrice ||
-                item.price ||
-                0
-            ).toLocaleString()}
-Bulk minimum: ${
-              item.aiConfig
-                ?.bulkMinQuantity ||
-              'Not configured'
-            }
+Minimum automated price: ${currency}${minimumPrice.toLocaleString()}
+Target price: ${currency}${targetPrice.toLocaleString()}
+Bulk minimum quantity: ${
+        aiConfig?.bulkMinQuantity ??
+        'Not configured'
+      }
 
 RULES:
 - Answer product questions using the supplied product information.
-- Never invent specifications, warranty terms, location details, stock information, or seller promises.
+- Never invent specifications, warranty terms, location details, stock information, seller promises, or delivery promises.
 - If information is unavailable, say that it is not provided.
 - Do not expose private seller information.
 - Respect the configured negotiation floor.
@@ -1562,368 +1379,752 @@ RULES:
 - Be natural, intelligent and conversational.
 - Use Markdown when it improves clarity.
 `;
-          } else {
-            systemInstruction = `
+    }
+
+    // ==========================================
+    // General TRADARA AI instructions
+    // ==========================================
+
+    const combinedSystemPrompt = `
+${systemInstruction}
+
 You are TRADARA AI, a general-purpose intelligent assistant integrated into the TRADARA marketplace.
 
-You are a genuine general-purpose AI assistant, not merely a sales bot or product FAQ system.
+Answer the user's actual question directly and intelligently.
 
-You can:
-- Answer general knowledge questions.
-- Explain concepts at beginner, intermediate or advanced levels.
-- Solve mathematics and logic problems.
-- Write, explain, review and debug code.
-- Help with JavaScript, TypeScript, React, Node.js, APIs, databases and software architecture.
-- Discuss science, technology, history, business and education.
-- Help users plan and reason through complex tasks.
-- Explain marketplace concepts and product information when supplied.
-- Help users formulate better questions and decisions.
-- Maintain conversational context.
-- Use available tools when the backend actually exposes and authorizes those tools.
+You can assist with:
 
-IMPORTANT:
-- Answer the user's actual question directly.
-- Do not force every question into e-commerce.
-- Do not use generic filler.
-- Do not pretend a tool was executed when it was not.
-- Do not pretend to have searched the web unless an actual search tool was executed.
-- If you do not know something, say so clearly.
-- For code, provide practical code and explain important details.
-- For mathematics, calculate carefully and show useful reasoning.
-- For ambiguous requests, ask a focused clarification only when it is genuinely necessary.
-- Be conversational rather than repetitive.
-- Use Markdown naturally.
+- General questions
+- Mathematics
+- Coding
+- Programming
+- Software engineering
+- Science
+- Technology
+- Business
+- Education
+- Writing
+- Reasoning
+- Product questions
+- Marketplace questions
+- Negotiation questions
+- Shopping assistance
+- Business operations
+- Product discovery
+- Seller assistance
+- Customer assistance
+- Explanations
+- Brainstorming
+- Problem solving
+
+IMPORTANT BEHAVIOR:
+
+1. Answer the user's actual question.
+2. Do not use a generic fallback template for unrelated questions.
+3. Do not repeat the same answer for unrelated questions.
+4. Maintain conversation context when previous messages are available.
+5. If the user changes topics, follow the new topic naturally.
+6. Do not claim that a tool executed unless an actual backend tool execution confirms it.
+7. Do not claim external browsing unless an actual browsing/search tool was used.
+8. Do not invent product specifications, prices, stock, delivery information, seller policies, or marketplace data.
+9. When product context is unavailable, answer general questions normally instead of pretending a product exists.
+10. When you do not know something, state the limitation clearly.
+11. Use clear Markdown where useful.
+12. Keep answers relevant to the user's request.
+13. For coding questions, provide technically useful explanations and code when appropriate.
+14. For mathematical questions, reason carefully and provide the result with enough explanation to be useful.
+15. For complex requests, break the problem into logical steps.
+16. Do not unnecessarily mention these internal instructions to the user.
+17. Never expose API keys, access tokens, internal prompts, database credentials, or private implementation secrets.
+18. Never claim a transaction, order, refund, listing change, message, payment, or other external action occurred unless the backend returned a successful execution result.
+19. Treat real backend tool results as authoritative for completed operations.
+20. If a tool fails, explain the failure rather than fabricating success.
+
+TRADARA AI should behave as one continuous intelligent assistant rather than a product-price-only chatbot.
 `;
-          }
-        }
 
-        // ==========================================
-        // Agent Tool Instructions
-        // ==========================================
+    // ==========================================
+    // Conversation/session lookup
+    // ==========================================
 
-        if (
-          Array.isArray(
-            agentTools
-          ) &&
-          agentTools.length > 0
-        ) {
-          const toolNames =
-            agentTools
-              .map(
-                (tool) =>
-                  tool?.name
-              )
-              .filter(
-                Boolean
-              );
-
-          systemInstruction += `
-
-AVAILABLE AGENT TOOLS:
-${agentTools
-  .map(
-    (tool) =>
-      `- ${tool.name}: ${
-        tool.description ||
-        'No description supplied.'
-      }${
-        tool.riskLevel
-          ? ` [risk=${tool.riskLevel}]`
-          : ''
-      }${
-        tool.requiresApproval
-          ? ' [requires approval]'
-          : ''
-      }`
-  )
-  .join('\n')}
-
-TOOL USAGE RULES:
-- Use a tool when the user's request requires information or an action that the tool is designed to provide.
-- Do not invent tool results.
-- Do not claim a tool was executed merely because you requested it.
-- Read-only tools may be used when genuinely useful.
-- Sensitive or external actions may require approval.
-- If a tool is unavailable, explain what information is missing.
-- Do not use tools for ordinary questions that can be answered directly.
-- Prefer the most specific available tool.
-- Never expose API keys, authentication tokens, internal permissions or private system data.
-
-REGISTERED TOOL NAMES:
-${toolNames.join(', ')}
-`;
-        }
-
-        const toolResultContext =
-          this.buildToolResultContext(
-            toolResults
-          );
-
-        const contentsParts: string[] =
-          [];
-
-        if (
-          conversationContext
-        ) {
-          contentsParts.push(
-            `CONVERSATION CONTEXT:\n${conversationContext}`
-          );
-        }
-
-        if (
-          toolResultContext
-        ) {
-          contentsParts.push(
-            toolResultContext
-          );
-        }
-
-        contentsParts.push(
-          `CURRENT USER MESSAGE:\n${cleanMessage}`
-        );
-
-        const geminiTools =
-          this.buildGeminiToolDeclarations(
-            agentTools
-          );
-
-        const generationConfig: any = {
-          systemInstruction,
-          maxOutputTokens:
-            2048
-        };
-
-        /*
-         * Only attach the tools configuration when actual tools
-         * were supplied. This preserves the old behavior for the
-         * existing controller route and general AI calls.
-         */
-        if (
-          geminiTools.length > 0
-        ) {
-          generationConfig.tools = [
+    try {
+      if (
+        sessionId
+      ) {
+        session =
+          await (
+            prisma as any
+          ).aiNegotiationSession.findUnique(
             {
-              functionDeclarations:
-                geminiTools
-            }
-          ];
-        }
-
-        const response =
-          await this.generateWithModelFallback(
-            {
-              contents:
-                contentsParts.join(
-                  '\n\n'
-                ),
-              config:
-                generationConfig
-            }
-          );
-
-        const parsed =
-          this.parseGeminiResponse(
-            response
-          );
-
-        structuredToolCalls =
-          parsed.toolCalls;
-
-        rawAiReply =
-          parsed.text || '';
-
-        /*
-         * Attach metadata to the returned tool calls without
-         * allowing the model to decide its own permissions.
-         *
-         * Actual authorization is still performed by the
-         * orchestrator/tool registry.
-         */
-        if (
-          structuredToolCalls.length >
-          0
-        ) {
-          structuredToolCalls =
-            structuredToolCalls.map(
-              (call) => {
-                const definition =
-                  agentTools.find(
-                    (tool) =>
-                      tool.name ===
-                      call.name
-                  );
-
-                return {
-                  ...call,
-                  requiresApproval:
-                    Boolean(
-                      definition?.requiresApproval
-                    ),
-                  riskLevel:
-                    definition?.riskLevel
-                };
+              where: {
+                id: sessionId
+              },
+              include: {
+                item: true,
+                buyer: true
               }
-            );
+            }
+          );
+      }
+
+      if (
+        !session
+      ) {
+        const sessionWhere: any =
+          {
+            buyerSession:
+              resolvedBuyerSession
+          };
+
+        if (
+          resolvedItemId
+        ) {
+          sessionWhere.item =
+            {
+              is: {
+                id: resolvedItemId
+              }
+            };
+        } else {
+          sessionWhere.item =
+            {
+              is: null
+            };
         }
+
+        session =
+          await (
+            prisma as any
+          ).aiNegotiationSession.findFirst(
+            {
+              where:
+                sessionWhere,
+              orderBy: {
+                createdAt:
+                  'desc'
+              },
+              include: {
+                item: true,
+                buyer: true
+              }
+            }
+          );
+      }
+    } catch (error) {
+      console.warn(
+        '[AI Controller] Session lookup failed:',
+        error
+      );
+    }
+
+    // ==========================================
+    // Create session if necessary
+    // ==========================================
+
+    if (
+      !session
+    ) {
+      try {
+        const sessionData: any =
+          {
+            buyerSession:
+              resolvedBuyerSession,
+            status:
+              'active'
+          };
+
+        if (
+          resolvedBuyerId
+        ) {
+          sessionData.buyer =
+            {
+              connect: {
+                id:
+                  resolvedBuyerId
+              }
+            };
+        }
+
+        if (
+          resolvedItemId &&
+          activeItem
+        ) {
+          sessionData.item =
+            {
+              connect: {
+                id:
+                  resolvedItemId
+              }
+            };
+        }
+
+        session =
+          await (
+            prisma as any
+          ).aiNegotiationSession.create(
+            {
+              data:
+                sessionData,
+              include: {
+                item: true,
+                buyer: true
+              }
+            }
+          );
       } catch (error) {
         console.error(
-          'Gemini AI Processing Error:',
+          '[AI Controller] Failed to create AI session:',
           error
         );
 
-        throw new Error(
-          'The AI model could not generate a response.'
+        throw error;
+      }
+    }
+
+    // ==========================================
+    // Attach buyer to an existing anonymous session
+    // ==========================================
+
+    if (
+      resolvedBuyerId &&
+      session &&
+      !session.buyer
+    ) {
+      try {
+        session =
+          await (
+            prisma as any
+          ).aiNegotiationSession.update(
+            {
+              where: {
+                id:
+                  session.id
+              },
+              data: {
+                buyer: {
+                  connect: {
+                    id:
+                      resolvedBuyerId
+                  }
+                }
+              },
+              include: {
+                item: true,
+                buyer: true
+              }
+            }
+          );
+      } catch (error) {
+        console.warn(
+          '[AI Controller] Could not attach buyer to existing session:',
+          error
         );
       }
     }
 
-    /*
-     * When Gemini returns tool calls, the model may not return
-     * ordinary text. That is intentional.
-     *
-     * The orchestrator can now inspect `toolCalls`, execute the
-     * authorized tools, and send their results back into this
-     * service on the next pass.
-     */
-    const hasToolCalls =
-      structuredToolCalls.length >
-      0;
+    // ==========================================
+    // Load conversation messages
+    // ==========================================
 
-    const sanitizedReply =
-      this.sanitizeMarkdownOutput(
-        rawAiReply
-      );
+    let databaseMessages: any[] =
+      [];
 
-    const aiReply =
-      sanitizedReply ||
-      (
-        hasToolCalls
-          ? ''
-          : 'I was unable to generate a response for that request. Please try again.'
-      );
-
-    await (
-      prisma as any
-    ).aiNegotiationSession.update(
-      {
-        where: {
-          id: session.id
-        },
-        data: {
-          roundCount:
-            currentRound,
-          currentOffer:
-            offeredPrice !==
-            undefined
-              ? offeredPrice
-              : session.currentOffer,
-          agreedPrice:
-            agreedPrice ||
-            session.agreedPrice,
-          status:
-            dealStatus,
-          updatedAt:
-            new Date()
-        }
-      }
-    );
-
-    /*
-     * Do not persist an empty assistant message when Gemini only
-     * returned structured tool calls.
-     *
-     * This prevents the database from containing blank AI bubbles
-     * while the orchestrator is waiting to execute the tool.
-     */
-    let aiMessage: any = null;
-
-    if (aiReply) {
-      aiMessage =
+    try {
+      databaseMessages =
         await (
           prisma as any
-        ).aiChatMessage.create({
-          data: {
+        ).aiChatMessage.findMany({
+          where: {
             sessionId:
-              session.id,
-            sender: 'ai',
-            message:
-              aiReply,
-            offerMade:
-              agreedPrice ||
-              null
-          }
+              session.id
+          },
+          orderBy: {
+            createdAt:
+              'asc'
+          },
+          take: 50
         });
-    }
-
-    /*
-     * Learning should only record an actual natural-language
-     * response. Tool calls are execution requests, not completed
-     * actions, so they must not be falsely recorded as completed
-     * AI outcomes.
-     */
-    if (aiReply) {
-      void this.recordInteractionLearning(
-        session.id,
-        cleanMessage,
-        aiReply,
-        perception,
-        dealStatus
+    } catch (error) {
+      console.warn(
+        '[AI Controller] Could not load AI chat history:',
+        error
       );
     }
 
+    const conversationContext =
+      this.buildConversationContext(
+        databaseMessages,
+        history
+      );
+
+    // ==========================================
+    // Buyer perception
+    // ==========================================
+
+    const perception =
+      this.perceiveBuyerIntent(
+        cleanMessage
+      );
+
+    // ==========================================
+    // Marketplace intelligence
+    // ==========================================
+
+    const marketplaceIntelligence =
+      await this.gatherMarketplaceIntelligence(
+        resolvedItemId,
+        resolvedBuyerId
+      );
+
+    // ==========================================
+    // Negotiation engine context
+    // ==========================================
+
+    let deterministicNegotiation:
+      any = null;
+
+    if (
+      activeItem &&
+      (
+        perception.detectedIntent ===
+          'bargain' ||
+        typeof offeredPrice ===
+          'number'
+      )
+    ) {
+      try {
+        const negotiationInput: any =
+          {
+            item:
+              activeItem,
+            message:
+              cleanMessage,
+            offeredPrice:
+              typeof offeredPrice ===
+              'number'
+                ? offeredPrice
+                : undefined,
+            quantity:
+              Math.max(
+                1,
+                Number(
+                  quantity || 1
+                )
+              ),
+            buyerPerception:
+              perception,
+            marketplaceIntelligence
+          };
+
+        if (
+          typeof (
+            NegotiationEngine as any
+          ).evaluate ===
+          'function'
+        ) {
+          deterministicNegotiation =
+            await (
+              NegotiationEngine as any
+            ).evaluate(
+              negotiationInput
+            );
+        } else if (
+          typeof (
+            NegotiationEngine as any
+          ).processNegotiation ===
+          'function'
+        ) {
+          deterministicNegotiation =
+            await (
+              NegotiationEngine as any
+            ).processNegotiation(
+              negotiationInput
+            );
+        }
+      } catch (error) {
+        console.warn(
+          '[AI Controller] Deterministic negotiation engine was unavailable for this message:',
+          error
+        );
+      }
+    }
+
+    // ==========================================
+    // Build model context
+    // ==========================================
+
+    const intelligenceContext = `
+BUYER PERCEPTION:
+${JSON.stringify(
+  perception,
+  null,
+  2
+)}
+
+MARKETPLACE INTELLIGENCE:
+${JSON.stringify(
+  marketplaceIntelligence,
+  null,
+  2
+)}
+
+DETERMINISTIC NEGOTIATION RESULT:
+${JSON.stringify(
+  deterministicNegotiation ||
+    null,
+  null,
+  2
+)}
+
+CONVERSATION HISTORY:
+${conversationContext}
+`;
+
+    const toolResultContext =
+      this.buildToolResultContext(
+        toolResults
+      );
+
+    const userPrompt = `
+USER MESSAGE:
+${cleanMessage}
+
+${intelligenceContext}
+
+${toolResultContext}
+
+${systemPrompt || ''}
+
+Respond to the user's current message.
+`;
+
+    // ==========================================
+    // Gemini tool declarations
+    // ==========================================
+
+    const declarations =
+      this.buildGeminiToolDeclarations(
+        agentTools
+      );
+
+    const generationConfig: any =
+      {
+        systemInstruction:
+          combinedSystemPrompt,
+        temperature:
+          0.4
+      };
+
+    if (
+      declarations.length > 0
+    ) {
+      generationConfig.tools =
+        [
+          {
+            functionDeclarations:
+              declarations
+          }
+        ];
+    }
+
+    // ==========================================
+    // Generate AI response
+    // ==========================================
+
+    let modelResponse: any;
+
+    try {
+      modelResponse =
+        await this.generateWithModelFallback(
+          {
+            contents:
+              userPrompt,
+            config:
+              generationConfig
+          }
+        );
+    } catch (error: any) {
+      console.error(
+        '[AI Controller] Gemini AI Processing Error:',
+        error
+      );
+
+      throw new Error(
+        'The AI model could not generate a response.'
+      );
+    }
+
+    const parsed =
+      this.parseGeminiResponse(
+        modelResponse
+      );
+
+    let aiResponse =
+      this.sanitizeResponse(
+        parsed.text
+      );
+
+    const toolCalls =
+      parsed.toolCalls;
+
+    // ==========================================
+    // Tool-call approval metadata
+    // ==========================================
+
+    let requiresConfirmation =
+      false;
+
+    let pendingToolDetails:
+      any = undefined;
+
+    if (
+      toolCalls.length > 0
+    ) {
+      for (const call of toolCalls) {
+        const definition =
+          agentTools.find(
+            (tool) =>
+              tool.name ===
+              call.name
+          );
+
+        if (
+          definition?.requiresApproval ||
+          definition?.riskLevel ===
+            'EXECUTE'
+        ) {
+          requiresConfirmation =
+            true;
+
+          pendingToolDetails =
+            {
+              toolName:
+                call.name,
+              params:
+                call.arguments,
+              reason:
+                `The "${call.name}" operation requires explicit user approval before execution.`,
+              riskLevel:
+                definition.riskLevel ||
+                'EXECUTE'
+            };
+
+          break;
+        }
+      }
+    }
+
+    // ==========================================
+    // Existing pending tool approval flow
+    // ==========================================
+
+    if (
+      pendingTool &&
+      userConfirmationConfirmed ===
+        true
+    ) {
+      requiresConfirmation =
+        false;
+    }
+
+    // ==========================================
+    // Fallback response protection
+    // ==========================================
+
+    if (
+      !aiResponse &&
+      toolCalls.length === 0
+    ) {
+      if (
+        deterministicNegotiation
+      ) {
+        aiResponse =
+          String(
+            deterministicNegotiation.message ||
+              deterministicNegotiation.response ||
+              deterministicNegotiation.reply ||
+              ''
+          ).trim();
+      }
+    }
+
+    if (
+      !aiResponse &&
+      toolCalls.length > 0
+    ) {
+      aiResponse =
+        'I have identified the required operation. The Tradara agent will process it through the authorized tool workflow.';
+    }
+
+    if (
+      !aiResponse
+    ) {
+      aiResponse =
+        'I’m ready to help. Tell me what you would like to do.';
+    }
+
+    // ==========================================
+    // Persist user message
+    // ==========================================
+
+    try {
+      await (
+        prisma as any
+      ).aiChatMessage.create({
+        data: {
+          sessionId:
+            session.id,
+          sender:
+            'user',
+          message:
+            cleanMessage
+        }
+      });
+    } catch (error) {
+      console.warn(
+        '[AI Controller] Could not persist user AI message:',
+        error
+      );
+    }
+
+    // ==========================================
+    // Persist assistant message
+    // ==========================================
+
+    try {
+      await (
+        prisma as any
+      ).aiChatMessage.create({
+        data: {
+          sessionId:
+            session.id,
+          sender:
+            'ai',
+          message:
+            aiResponse
+        }
+      });
+    } catch (error) {
+      console.warn(
+        '[AI Controller] Could not persist AI response:',
+        error
+      );
+    }
+
+    // ==========================================
+    // Learning
+    // ==========================================
+
+    try {
+      await this.recordInteractionLearning(
+        session.id,
+        cleanMessage,
+        aiResponse,
+        perception,
+        deterministicNegotiation
+          ?.status ||
+          session.status ||
+          'active'
+      );
+    } catch (error) {
+      console.warn(
+        '[AI Controller] Learning persistence failed:',
+        error
+      );
+    }
+
+    // ==========================================
+    // Build result
+    // ==========================================
+
     return {
+      success: true,
+
       sessionId:
         session.id,
+
+      buyerSession:
+        resolvedBuyerSession,
+
+      itemId:
+        resolvedItemId,
+
       reply:
-        aiReply,
-      status:
-        dealStatus,
-      agreedPrice,
-      aiMessage,
+        aiResponse,
+
+      response:
+        aiResponse,
+
+      message:
+        aiResponse,
+
+      content:
+        aiResponse,
+
+      toolCalls,
+
+      requiresConfirmation,
+
+      pendingToolDetails,
+
       perception,
-      intelligence,
 
-      /*
-       * Structured tool calls produced by Gemini.
-       *
-       * The existing orchestrator currently does not consume these
-       * dynamically yet. They are returned here so the next
-       * orchestrator upgrade can execute them through the existing
-       * Tradara ToolRegistry with permissions and approval controls.
-       */
-      toolCalls:
-        structuredToolCalls,
+      marketplaceIntelligence,
 
-      /*
-       * Useful signal for the orchestration layer.
-       */
-      requiresToolExecution:
-        hasToolCalls
+      negotiation:
+        deterministicNegotiation,
+
+      metadata: {
+        model:
+          process.env.GEMINI_MODEL ||
+          'gemini-3.8-flash',
+        toolCount:
+          toolCalls.length,
+        usedTools:
+          toolCalls.length >
+          0,
+        sessionId:
+          session.id
+      }
     };
   }
 
   /**
-   * Allow switching session status.
+   * Update a negotiation session status.
    */
   public static async updateSessionStatus(
     sessionId: string,
-    status:
-      | 'active'
-      | 'transferred'
-      | 'closed'
-      | 'human_agent'
-  ) {
-    return await (
+    status: string
+  ): Promise<any> {
+    const allowedStatuses = [
+      'active',
+      'agreed',
+      'transferred',
+      'closed',
+      'human_agent'
+    ];
+
+    if (
+      !allowedStatuses.includes(
+        status
+      )
+    ) {
+      throw new Error(
+        `Invalid session status "${status}".`
+      );
+    }
+
+    return (
       prisma as any
-    ).aiNegotiationSession.update(
-      {
-        where: {
-          id: sessionId
-        },
-        data: {
-          status
-        }
+    ).aiNegotiationSession.update({
+      where: {
+        id: sessionId
+      },
+      data: {
+        status
       }
-    );
+    });
   }
 }
+
+export default AiSalesService;

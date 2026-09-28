@@ -12,7 +12,8 @@ import { saveNegotiationRound } from '../services/negotiationPersistenceService'
 
 export const whatsappRouter = Router();
 
-const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || 'TRADARA_VERIFY_TOKEN_2026';
+const VERIFY_TOKEN =
+  process.env.WHATSAPP_VERIFY_TOKEN || 'TRADARA_VERIFY_TOKEN_2026';
 
 /**
  * GET /api/webhook/whatsapp
@@ -27,10 +28,13 @@ whatsappRouter.get('/', (req: Request, res: Response) => {
     if (mode === 'subscribe' && token === VERIFY_TOKEN) {
       console.log('[WhatsApp Webhook] Verification successful.');
       return res.status(200).send(challenge);
-    } else {
-      console.error('[WhatsApp Webhook] Verification failed. Token mismatch.');
-      return res.sendStatus(403);
     }
+
+    console.error(
+      '[WhatsApp Webhook] Verification failed. Token mismatch.'
+    );
+
+    return res.sendStatus(403);
   }
 
   return res.sendStatus(400);
@@ -38,135 +42,409 @@ whatsappRouter.get('/', (req: Request, res: Response) => {
 
 /**
  * POST /api/webhook/whatsapp
- * End-to-End Negotiation Pipeline: Webhook -> Gemini AI -> Prisma Persistence -> WhatsApp Sender + Socket.io
+ *
+ * End-to-End Negotiation Pipeline:
+ *
+ * WhatsApp Webhook
+ *       ↓
+ * Extract Buyer Message
+ *       ↓
+ * Extract Offer
+ *       ↓
+ * Gemini AI Negotiation Controller
+ *       ↓
+ * Persist Negotiation Round
+ *       ↓
+ * Send AI Response to Buyer
+ *       ↓
+ * Socket.io Seller Dashboard Update
  */
 whatsappRouter.post('/', async (req: Request, res: Response) => {
   const body = req.body;
 
-  if (body.object === 'whatsapp_business_account') {
-    // 1. Instantly respond 200 OK to Meta to avoid webhook retries/timeouts
-    res.status(200).send('EVENT_RECEIVED');
+  /**
+   * Only process WhatsApp Business Account webhook events.
+   */
+  if (body?.object !== 'whatsapp_business_account') {
+    return res.sendStatus(404);
+  }
 
-    try {
-      const entry = body.entry?.[0];
-      const changes = entry?.changes?.[0];
-      const value = changes?.value;
-      const message = value?.messages?.[0];
+  /**
+   * Respond immediately to Meta.
+   *
+   * WhatsApp expects the webhook endpoint to acknowledge the event quickly.
+   * The actual negotiation processing continues asynchronously below.
+   */
+  res.status(200).send('EVENT_RECEIVED');
 
-      if (!message) return;
+  try {
+    const entry = body.entry?.[0];
+    const changes = entry?.changes?.[0];
+    const value = changes?.value;
+    const message = value?.messages?.[0];
 
-      const buyerPhone = message.from; // e.g. "2348123456789"
-      const messageType = message.type;
-
-      let messageText = '';
-      if (messageType === 'text') {
-        messageText = message.text.body;
-      } else if (messageType === 'button') {
-        messageText = message.button.text;
-      }
-
-      console.log(`[WhatsApp Webhook] Incoming message from +${buyerPhone}: "${messageText}"`);
-
-      // 2. Extract numeric offer amount from buyer text
-      const offerMatch = messageText.match(/\$?(\d+(\.\d+)?)/);
-      const offerAmount = offerMatch ? parseFloat(offerMatch[1]) : null;
-
-      if (!offerAmount) {
-        console.log(`[WhatsApp Webhook] No numeric offer found in message from +${buyerPhone}.`);
-        return;
-      }
-
-      const sessionId = `SESS-WA-${buyerPhone.slice(-4)}`;
-      const productId = 'PROD-101';
-      const io = (req as any).io;
-
-      // 3. Broadcast buyer offer received event over Socket.io
-      if (io) {
-        io.emit('offer_received', {
-          sessionId,
-          productId,
-          buyerHandle: `+${buyerPhone}`,
-          offerAmount,
-          round: 1,
-          timestamp: new Date().toISOString(),
-        });
-      }
-
-      // 4. Construct context for Gemini AI decision calculation
-      const negotiationContext: NegotiationContext = {
-        sessionId,
-        productName: 'Sony WH-1000XM5 Headphones',
-        listPrice: 350,
-        floorPrice: 280,
-        aiPersona: 'BALANCED',
-        maxRounds: 5,
-        currentRound: 1,
-        buyerOffer: offerAmount,
-        conversationHistory: [
-          {
-            sender: 'BUYER',
-            amount: offerAmount,
-            message: messageText,
-          },
-        ],
-      };
-
-      console.log(`[WhatsApp Webhook] Executing Gemini AI negotiation controller for session ${sessionId}...`);
-
-      // 5. Compute AI counter-offer decision using @google/genai
-      const aiDecision = await computeNegotiationDecision(negotiationContext);
-
+    /**
+     * Ignore webhook events that do not contain a message.
+     *
+     * This can happen for delivery receipts, read receipts,
+     * status updates, etc.
+     */
+    if (!message) {
       console.log(
-        `[WhatsApp Webhook] AI Decision: ${aiDecision.action} | Counter: $${aiDecision.counterAmount}`
+        '[WhatsApp Webhook] Webhook event contained no incoming message.'
       );
 
-      // 6. Persist incoming offer, Gemini AI decision, and reasoning into MongoDB via Prisma
-      try {
-        await saveNegotiationRound({
-          sessionId,
-          itemId: productId,
-          buyerSession: buyerPhone,
-          buyerOffer: offerAmount,
-          buyerMessage: messageText,
-          aiAction: aiDecision.action as 'ACCEPT' | 'REJECT' | 'COUNTER',
-          aiCounterAmount: aiDecision.counterAmount,
-          aiReasoning: aiDecision.reasoning,
-          aiBuyerMessage: aiDecision.buyerMessage,
-          currentRound: 1,
-        });
-        console.log(`[WhatsApp Webhook] Successfully persisted negotiation round to MongoDB.`);
-      } catch (dbError) {
-        console.error('[WhatsApp Webhook DB Persistence Error]:', dbError);
-      }
+      return;
+    }
 
-      // 7. Send outgoing AI message directly to buyer via Meta WhatsApp API
-      await sendWhatsAppTextMessage({
-        to: buyerPhone,
-        message: `${aiDecision.buyerMessage}`,
+    const buyerPhone = message.from;
+    const messageType = message.type;
+
+    /**
+     * Extract message text from supported WhatsApp message types.
+     */
+    let messageText = '';
+
+    if (messageType === 'text') {
+      messageText = message.text?.body || '';
+    } else if (messageType === 'button') {
+      messageText = message.button?.text || '';
+    }
+
+    messageText = String(messageText).trim();
+
+    console.log(
+      `[WhatsApp Webhook] Incoming message from +${buyerPhone}: "${messageText}"`
+    );
+
+    /**
+     * Ignore messages that do not contain usable text.
+     */
+    if (!messageText) {
+      console.log(
+        `[WhatsApp Webhook] Empty or unsupported message from +${buyerPhone}.`
+      );
+
+      return;
+    }
+
+    /**
+     * Extract numeric offer amount from buyer text.
+     *
+     * Examples:
+     * "$300"      -> 300
+     * "300"       -> 300
+     * "$299.50"   -> 299.50
+     * "I can do 280" -> 280
+     */
+    const offerMatch = messageText.match(/\$?(\d+(?:\.\d+)?)/);
+
+    const offerAmount = offerMatch
+      ? Number.parseFloat(offerMatch[1])
+      : null;
+
+    /**
+     * This WhatsApp route is specifically the negotiation pipeline.
+     * Therefore a numeric offer is required.
+     */
+    if (offerAmount === null || !Number.isFinite(offerAmount)) {
+      console.log(
+        `[WhatsApp Webhook] No numeric offer found in message from +${buyerPhone}.`
+      );
+
+      return;
+    }
+
+    /**
+     * Reject invalid negative/zero offers.
+     */
+    if (offerAmount <= 0) {
+      console.log(
+        `[WhatsApp Webhook] Invalid offer amount from +${buyerPhone}: ${offerAmount}`
+      );
+
+      return;
+    }
+
+    /**
+     * Basic webhook/session identifiers.
+     *
+     * These values currently match the existing WhatsApp negotiation
+     * implementation and seller dashboard event structure.
+     */
+    const sessionId = `SESS-WA-${buyerPhone.slice(-4)}`;
+    const productId = 'PROD-101';
+
+    /**
+     * Socket.io instance is attached to the Express request
+     * by the backend server.
+     */
+    const io = (req as any).io;
+
+    /**
+     * Product information currently used by the WhatsApp
+     * negotiation demonstration/integration.
+     */
+    const listedPrice = 350;
+    const minimumPrice = 280;
+    const targetPrice = 320;
+
+    // ==========================================
+    // 3. BROADCAST BUYER OFFER RECEIVED
+    // ==========================================
+
+    if (io) {
+      io.emit('offer_received', {
+        sessionId,
+        productId,
+        buyerHandle: `+${buyerPhone}`,
+        offerAmount,
+        round: 1,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // ==========================================
+    // 4. CONSTRUCT GEMINI NEGOTIATION CONTEXT
+    // ==========================================
+
+    /**
+     * This object intentionally follows the current Phase 2
+     * NegotiationContext contract:
+     *
+     * listedPrice
+     * minimumPrice
+     * targetPrice
+     * buyerMessage
+     * buyerOffer
+     * previousMessages
+     *
+     * Do NOT replace these with the old:
+     *
+     * listPrice
+     * floorPrice
+     * aiPersona
+     * maxRounds
+     * currentRound
+     * conversationHistory
+     *
+     * because the current Gemini negotiation controller uses
+     * the Phase 2 contract.
+     */
+    const negotiationContext: NegotiationContext = {
+      productName: 'Sony WH-1000XM5 Headphones',
+
+      productDescription:
+        'Sony WH-1000XM5 wireless noise-cancelling headphones.',
+
+      listedPrice,
+
+      minimumPrice,
+
+      targetPrice,
+
+      currency: '$',
+
+      buyerMessage: messageText,
+
+      buyerOffer: offerAmount,
+
+      quantity: 1,
+
+      previousMessages: [
+        {
+          role: 'user',
+          content: messageText,
+        },
+      ],
+    };
+
+    console.log(
+      `[WhatsApp Webhook] Executing Gemini AI negotiation controller for session ${sessionId}...`
+    );
+
+    // ==========================================
+    // 5. COMPUTE GEMINI AI NEGOTIATION DECISION
+    // ==========================================
+
+    const aiDecision = await computeNegotiationDecision(
+      negotiationContext
+    );
+
+    console.log(
+      `[WhatsApp Webhook] AI Decision: ${aiDecision.action} | Counter: $${aiDecision.counterAmount ?? 'N/A'}`
+    );
+
+    /**
+     * The Gemini negotiation controller uses lowercase action names:
+     *
+     * accept
+     * reject
+     * counter
+     * ask
+     * human
+     *
+     * The existing persistence layer expects:
+     *
+     * ACCEPT
+     * REJECT
+     * COUNTER
+     *
+     * Normalize the result here so the persistence contract remains
+     * stable without changing the AI controller.
+     */
+    let persistenceAction: 'ACCEPT' | 'REJECT' | 'COUNTER';
+
+    switch (aiDecision.action) {
+      case 'accept':
+        persistenceAction = 'ACCEPT';
+        break;
+
+      case 'reject':
+        persistenceAction = 'REJECT';
+        break;
+
+      case 'counter':
+      case 'ask':
+      case 'human':
+      default:
+        persistenceAction = 'COUNTER';
+        break;
+    }
+
+    /**
+     * Always provide a numeric value to downstream systems.
+     *
+     * If the AI accepts/rejects without a counter amount,
+     * the buyer's original offer is used as the dashboard's
+     * current offer value.
+     */
+    const dashboardOffer =
+      typeof aiDecision.counterAmount === 'number' &&
+      Number.isFinite(aiDecision.counterAmount)
+        ? aiDecision.counterAmount
+        : offerAmount;
+
+    // ==========================================
+    // 6. PERSIST NEGOTIATION ROUND
+    // ==========================================
+
+    try {
+      await saveNegotiationRound({
+        sessionId,
+        itemId: productId,
+        buyerSession: buyerPhone,
+        buyerOffer: offerAmount,
+        buyerMessage: messageText,
+
+        aiAction: persistenceAction,
+
+        aiCounterAmount: aiDecision.counterAmount,
+
+        aiReasoning:
+          aiDecision.reason ||
+          `Tradara AI selected the ${aiDecision.action} negotiation action.`,
+
+        aiBuyerMessage: aiDecision.message,
+
+        currentRound: 1,
       });
 
-      // 8. Broadcast updated session status to Seller Dashboard via Socket.io
-      if (io) {
-        io.emit('session_updated', {
-          id: sessionId,
-          productId,
-          productName: 'Sony WH-1000XM5 Headphones',
-          buyerHandle: `+${buyerPhone}`,
-          channel: 'WhatsApp',
-          listPrice: 350,
-          floorPrice: 280,
-          currentOffer: aiDecision.counterAmount,
-          rounds: 1,
-          status: aiDecision.action === 'ACCEPT' ? 'ACCEPTED' : aiDecision.action === 'REJECT' ? 'REJECTED' : 'ACTIVE',
-          lastUpdated: 'Just now',
-          aiReasoning: aiDecision.reasoning,
-        });
-      }
-    } catch (error) {
-      console.error('[WhatsApp Webhook Pipeline Error]:', error);
+      console.log(
+        '[WhatsApp Webhook] Successfully persisted negotiation round to MongoDB.'
+      );
+    } catch (dbError) {
+      /**
+       * Database persistence failure should not prevent the AI
+       * from responding to the buyer.
+       */
+      console.error(
+        '[WhatsApp Webhook DB Persistence Error]:',
+        dbError
+      );
     }
-  } else {
-    res.sendStatus(404);
+
+    // ==========================================
+    // 7. SEND AI RESPONSE TO BUYER
+    // ==========================================
+
+    const buyerResponse =
+      aiDecision.message?.trim() ||
+      'Thanks for your offer. Let me review that negotiation.';
+
+    try {
+      await sendWhatsAppTextMessage({
+        to: buyerPhone,
+        message: buyerResponse,
+      });
+
+      console.log(
+        `[WhatsApp Webhook] AI response successfully sent to +${buyerPhone}.`
+      );
+    } catch (whatsappError) {
+      /**
+       * WhatsApp delivery errors are logged independently so that
+       * the negotiation result remains available to the seller dashboard.
+       */
+      console.error(
+        '[WhatsApp Webhook WhatsApp Delivery Error]:',
+        whatsappError
+      );
+    }
+
+    // ==========================================
+    // 8. BROADCAST UPDATED SESSION TO SELLER DASHBOARD
+    // ==========================================
+
+    if (io) {
+      const sessionStatus =
+        aiDecision.action === 'accept'
+          ? 'ACCEPTED'
+          : aiDecision.action === 'reject'
+            ? 'REJECTED'
+            : 'ACTIVE';
+
+      io.emit('session_updated', {
+        id: sessionId,
+
+        productId,
+
+        productName: 'Sony WH-1000XM5 Headphones',
+
+        buyerHandle: `+${buyerPhone}`,
+
+        channel: 'WhatsApp',
+
+        listPrice: listedPrice,
+
+        floorPrice: minimumPrice,
+
+        currentOffer: dashboardOffer,
+
+        rounds: 1,
+
+        status: sessionStatus,
+
+        lastUpdated: 'Just now',
+
+        aiReasoning:
+          aiDecision.reason ||
+          `Tradara AI selected the ${aiDecision.action} negotiation action.`,
+      });
+    }
+
+    console.log(
+      `[WhatsApp Webhook] Negotiation pipeline completed for session ${sessionId}.`
+    );
+  } catch (error) {
+    /**
+     * The webhook has already returned EVENT_RECEIVED to Meta,
+     * so this error is logged rather than attempting another HTTP response.
+     */
+    console.error(
+      '[WhatsApp Webhook Pipeline Error]:',
+      error
+    );
   }
 });
 
