@@ -1,5 +1,6 @@
 // ==========================================
 // FILE: backend/src/services/aiSalesService.ts
+// TRADARA AI — Resilient AI Sales + General AI Service
 // ==========================================
 
 import prisma from '../lib/prisma';
@@ -134,11 +135,43 @@ interface ParsedGeminiResponse {
   toolCalls: AiSalesToolCall[];
 }
 
+interface GeminiGenerationResult {
+  response: any;
+  model: string;
+}
+
+interface GeminiModelHealth {
+  consecutiveFailures: number;
+  lastFailureAt: number;
+  cooldownUntil: number;
+}
+
 // ==========================================
 // AI Sales Service
 // ==========================================
 
 export class AiSalesService {
+  // ==========================================
+  // Gemini resilience configuration
+  // ==========================================
+
+  /**
+   * Runtime health state for individual Gemini models.
+   *
+   * This prevents Tradara from repeatedly hammering a model that
+   * has just returned a transient provider failure.
+   */
+  private static readonly geminiModelHealth =
+    new Map<string, GeminiModelHealth>();
+
+  /**
+   * Last model successfully used by this process.
+   *
+   * This is mainly useful for diagnostics and response metadata.
+   */
+  private static lastSuccessfulGeminiModel =
+    '';
+
   /**
    * Helper function to sanitize AI responses without destroying
    * legitimate Markdown structure.
@@ -907,29 +940,412 @@ IMPORTANT:
     };
   }
 
+  // ==========================================
+  // Gemini provider resilience helpers
+  // ==========================================
+
   /**
-   * Generate content with a resilient Gemini model fallback.
-   *
-   * The timeout prevents one overloaded model from blocking the
-   * entire Tradara request for several minutes.
-   *
-   * GEMINI_MODEL may be supplied to choose the preferred model.
-   * GEMINI_TIMEOUT_MS may be supplied to change the timeout.
+   * Convert an unknown error into a readable string.
    */
-  private static async generateWithModelFallback(
-    params: {
-      contents: any;
-      config?: any;
+  private static getGeminiErrorMessage(
+    error: any
+  ): string {
+    if (
+      typeof error ===
+      'string'
+    ) {
+      return error;
     }
-  ) {
+
+    if (
+      typeof error?.message ===
+      'string'
+    ) {
+      return error.message;
+    }
+
+    try {
+      return JSON.stringify(
+        error
+      );
+    } catch {
+      return String(
+        error
+      );
+    }
+  }
+
+  /**
+   * Extract a provider/network status code from different
+   * Google SDK / fetch / HTTP error shapes.
+   */
+  private static getGeminiErrorStatus(
+    error: any
+  ): number | undefined {
+    const candidates = [
+      error?.status,
+      error?.statusCode,
+      error?.code,
+      error?.response?.status,
+      error?.response?.statusCode,
+      error?.cause?.status,
+      error?.cause?.statusCode
+    ];
+
+    for (const candidate of candidates) {
+      const numeric =
+        Number(candidate);
+
+      if (
+        Number.isFinite(
+          numeric
+        ) &&
+        numeric >= 100 &&
+        numeric <= 599
+      ) {
+        return numeric;
+      }
+    }
+
+    const message =
+      this.getGeminiErrorMessage(
+        error
+      ).toLowerCase();
+
+    const statusMatch =
+      message.match(
+        /\b(408|429|500|502|503|504)\b/
+      );
+
+    if (statusMatch) {
+      return Number(
+        statusMatch[1]
+      );
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Determine whether an error is likely transient.
+   *
+   * These failures are safe candidates for retrying:
+   * - 408 request timeout
+   * - 429 rate limit
+   * - 500 internal server error
+   * - 502 bad gateway
+   * - 503 service unavailable / overload
+   * - 504 gateway timeout
+   * - network/fetch failures
+   * - connection resets
+   * - explicit timeout failures
+   */
+  private static isTransientGeminiError(
+    error: any
+  ): boolean {
+    const status =
+      this.getGeminiErrorStatus(
+        error
+      );
+
+    if (
+      status === 408 ||
+      status === 429 ||
+      status === 500 ||
+      status === 502 ||
+      status === 503 ||
+      status === 504
+    ) {
+      return true;
+    }
+
+    const message =
+      this.getGeminiErrorMessage(
+        error
+      ).toLowerCase();
+
+    const transientPatterns = [
+      'high demand',
+      'service unavailable',
+      'temporarily unavailable',
+      'unavailable',
+      'overloaded',
+      'overload',
+      'rate limit',
+      'rate_limit',
+      'too many requests',
+      'resource exhausted',
+      'resource_exhausted',
+      'quota exceeded',
+      'quota_exceeded',
+      'fetch failed',
+      'network error',
+      'networkerror',
+      'connection reset',
+      'connection refused',
+      'socket hang up',
+      'econnreset',
+      'econnrefused',
+      'etimedout',
+      'timeout',
+      'timed out',
+      'gateway',
+      'temporary failure',
+      'temporarily failing'
+    ];
+
+    return transientPatterns.some(
+      (pattern) =>
+        message.includes(
+          pattern
+        )
+    );
+  }
+
+  /**
+   * Read a positive integer environment variable safely.
+   */
+  private static readPositiveIntegerEnv(
+    name: string,
+    fallback: number,
+    min: number,
+    max: number
+  ): number {
+    const raw =
+      Number(
+        process.env[name]
+      );
+
+    if (
+      !Number.isFinite(
+        raw
+      )
+    ) {
+      return fallback;
+    }
+
+    return Math.min(
+      max,
+      Math.max(
+        min,
+        Math.floor(raw)
+      )
+    );
+  }
+
+  /**
+   * Wait for a number of milliseconds.
+   */
+  private static async sleep(
+    milliseconds: number
+  ): Promise<void> {
+    if (
+      milliseconds <= 0
+    ) {
+      return;
+    }
+
+    await new Promise<void>(
+      (resolve) => {
+        setTimeout(
+          resolve,
+          milliseconds
+        );
+      }
+    );
+  }
+
+  /**
+   * Exponential backoff with jitter.
+   *
+   * Example:
+   * retry 1 ≈ 500-1000ms
+   * retry 2 ≈ 1000-2000ms
+   * retry 3 ≈ 2000-4000ms
+   */
+  private static calculateRetryDelay(
+    retryNumber: number,
+    baseDelayMs: number,
+    maxDelayMs: number
+  ): number {
+    const exponent =
+      Math.max(
+        0,
+        retryNumber - 1
+      );
+
+    const exponentialDelay =
+      Math.min(
+        maxDelayMs,
+        baseDelayMs *
+          Math.pow(
+            2,
+            exponent
+          )
+      );
+
+    const jitter =
+      Math.floor(
+        Math.random() *
+          Math.max(
+            100,
+            Math.floor(
+              exponentialDelay *
+                0.5
+            )
+          )
+      );
+
+    return Math.min(
+      maxDelayMs,
+      exponentialDelay +
+        jitter
+    );
+  }
+
+  /**
+   * Get current model health.
+   */
+  private static getModelHealth(
+    modelName: string
+  ): GeminiModelHealth {
+    const existing =
+      this.geminiModelHealth.get(
+        modelName
+      );
+
+    if (existing) {
+      return existing;
+    }
+
+    const fresh: GeminiModelHealth =
+      {
+        consecutiveFailures: 0,
+        lastFailureAt: 0,
+        cooldownUntil: 0
+      };
+
+    this.geminiModelHealth.set(
+      modelName,
+      fresh
+    );
+
+    return fresh;
+  }
+
+  /**
+   * Check whether a model is currently cooling down.
+   */
+  private static isModelCoolingDown(
+    modelName: string,
+    now: number = Date.now()
+  ): boolean {
+    const health =
+      this.getModelHealth(
+        modelName
+      );
+
+    return (
+      health.cooldownUntil >
+      now
+    );
+  }
+
+  /**
+   * Mark a model as successful.
+   */
+  private static markModelSuccess(
+    modelName: string
+  ): void {
+    this.geminiModelHealth.set(
+      modelName,
+      {
+        consecutiveFailures: 0,
+        lastFailureAt: 0,
+        cooldownUntil: 0
+      }
+    );
+
+    this.lastSuccessfulGeminiModel =
+      modelName;
+  }
+
+  /**
+   * Mark a model as failed.
+   *
+   * The cooldown grows with consecutive failures but is bounded.
+   */
+  private static markModelFailure(
+    modelName: string,
+    cooldownBaseMs: number,
+    cooldownMaxMs: number
+  ): void {
+    const previous =
+      this.getModelHealth(
+        modelName
+      );
+
+    const consecutiveFailures =
+      previous.consecutiveFailures +
+      1;
+
+    const cooldown =
+      Math.min(
+        cooldownMaxMs,
+        cooldownBaseMs *
+          Math.pow(
+            2,
+            Math.min(
+              consecutiveFailures -
+                1,
+              5
+            )
+          )
+      );
+
+    const now =
+      Date.now();
+
+    this.geminiModelHealth.set(
+      modelName,
+      {
+        consecutiveFailures,
+        lastFailureAt:
+          now,
+        cooldownUntil:
+          now + cooldown
+      }
+    );
+
+    console.warn(
+      `[Gemini] Model ${modelName} placed on cooldown for ${cooldown}ms after ${consecutiveFailures} consecutive failure(s).`
+    );
+  }
+
+  /**
+   * Determine whether a model is configured in a safe way.
+   *
+   * If GEMINI_MODEL is invalid, we do not allow it to replace the
+   * complete fallback chain.
+   */
+  private static buildGeminiModelList(): string[] {
     const configuredModel =
       (
         process.env.GEMINI_MODEL ||
         ''
       ).trim();
 
+    /**
+     * Current stable model rotation.
+     *
+     * gemini-3.5-flash-lite is intentionally included because it
+     * is designed for high-throughput/cost-effective workloads and
+     * gives Tradara another independent model option when a larger
+     * Flash model is under heavy demand.
+     */
     const supportedModels = [
       'gemini-3.8-flash',
+      'gemini-3.5-flash-lite',
       'gemini-3.7-flash',
       'gemini-3.6-flash',
       'gemini-3.5-flash'
@@ -961,94 +1377,441 @@ IMPORTANT:
       }
     }
 
-    const timeoutMsRaw =
-      Number(
-        process.env.GEMINI_TIMEOUT_MS ||
-          45000
+    return modelsToTry;
+  }
+
+  /**
+   * Execute one Gemini model request with a hard timeout.
+   *
+   * The SDK promise itself is not cancelled here because cancellation
+   * support differs between SDK versions. The timeout still prevents
+   * Tradara's request from waiting indefinitely.
+   */
+  private static async executeGeminiModelRequest(
+    modelName: string,
+    params: {
+      contents: any;
+      config?: any;
+    },
+    timeoutMs: number
+  ): Promise<any> {
+    let timeoutHandle:
+      ReturnType<typeof setTimeout> |
+      undefined;
+
+    try {
+      const generationPromise =
+        ai.models.generateContent({
+          model:
+            modelName,
+          contents:
+            params.contents,
+          config:
+            params.config
+        });
+
+      const timeoutPromise =
+        new Promise<never>(
+          (
+            _resolve,
+            reject
+          ) => {
+            timeoutHandle =
+              setTimeout(
+                () => {
+                  const timeoutError =
+                    new Error(
+                      `Gemini model ${modelName} timed out after ${timeoutMs}ms.`
+                    );
+
+                  (
+                    timeoutError as any
+                  ).code =
+                    'GEMINI_TIMEOUT';
+
+                  reject(
+                    timeoutError
+                  );
+                },
+                timeoutMs
+              );
+          }
+        );
+
+      return await Promise.race([
+        generationPromise,
+        timeoutPromise
+      ]);
+    } finally {
+      if (
+        timeoutHandle
+      ) {
+        clearTimeout(
+          timeoutHandle
+        );
+      }
+    }
+  }
+
+  /**
+   * Generate content with a resilient Gemini model fallback.
+   *
+   * Phase 2 provider-resilience behavior:
+   *
+   * 1. preferred model first
+   * 2. model rotation
+   * 3. retry transient errors
+   * 4. exponential backoff
+   * 5. jitter
+   * 6. per-model cooldown
+   * 7. per-attempt timeout
+   * 8. overall request deadline
+   * 9. automatic fallback to another supported model
+   *
+   * Environment variables:
+   *
+   * GEMINI_MODEL
+   * GEMINI_TIMEOUT_MS
+   * GEMINI_TOTAL_TIMEOUT_MS
+   * GEMINI_MAX_RETRIES
+   * GEMINI_RETRY_BASE_DELAY_MS
+   * GEMINI_RETRY_MAX_DELAY_MS
+   * GEMINI_MODEL_COOLDOWN_MS
+   * GEMINI_MODEL_COOLDOWN_MAX_MS
+   */
+  private static async generateWithModelFallback(
+    params: {
+      contents: any;
+      config?: any;
+    }
+  ): Promise<GeminiGenerationResult> {
+    if (!apiKey) {
+      throw new Error(
+        'Gemini API key is not configured.'
       );
+    }
+
+    const modelsToTry =
+      this.buildGeminiModelList();
+
+    if (
+      modelsToTry.length === 0
+    ) {
+      throw new Error(
+        'No supported Gemini models are configured.'
+      );
+    }
 
     const timeoutMs =
-      Number.isFinite(
-        timeoutMsRaw
-      ) &&
-      timeoutMsRaw > 0
-        ? timeoutMsRaw
-        : 45000;
+      this.readPositiveIntegerEnv(
+        'GEMINI_TIMEOUT_MS',
+        45000,
+        5000,
+        120000
+      );
 
-    let lastError: any;
+    const totalTimeoutMs =
+      this.readPositiveIntegerEnv(
+        'GEMINI_TOTAL_TIMEOUT_MS',
+        120000,
+        10000,
+        300000
+      );
+
+    const maxRetries =
+      this.readPositiveIntegerEnv(
+        'GEMINI_MAX_RETRIES',
+        2,
+        0,
+        5
+      );
+
+    const retryBaseDelayMs =
+      this.readPositiveIntegerEnv(
+        'GEMINI_RETRY_BASE_DELAY_MS',
+        750,
+        100,
+        10000
+      );
+
+    const retryMaxDelayMs =
+      this.readPositiveIntegerEnv(
+        'GEMINI_RETRY_MAX_DELAY_MS',
+        8000,
+        500,
+        30000
+      );
+
+    const modelCooldownMs =
+      this.readPositiveIntegerEnv(
+        'GEMINI_MODEL_COOLDOWN_MS',
+        15000,
+        1000,
+        120000
+      );
+
+    const modelCooldownMaxMs =
+      this.readPositiveIntegerEnv(
+        'GEMINI_MODEL_COOLDOWN_MAX_MS',
+        120000,
+        5000,
+        600000
+      );
+
+    const requestStartedAt =
+      Date.now();
+
+    const overallDeadline =
+      requestStartedAt +
+      totalTimeoutMs;
+
+    let lastError: any =
+      undefined;
+
+    let attemptedModels = 0;
 
     for (const modelName of modelsToTry) {
-      let timeoutHandle:
-        ReturnType<typeof setTimeout> |
-        undefined;
+      const now =
+        Date.now();
 
-      try {
+      if (
+        now >=
+        overallDeadline
+      ) {
+        break;
+      }
+
+      if (
+        this.isModelCoolingDown(
+          modelName,
+          now
+        )
+      ) {
+        const health =
+          this.getModelHealth(
+            modelName
+          );
+
+        const remaining =
+          Math.max(
+            0,
+            health.cooldownUntil -
+              now
+          );
+
         console.info(
-          `[Gemini] Attempting model: ${modelName}`
+          `[Gemini] Skipping ${modelName}; model cooldown has ${remaining}ms remaining.`
         );
 
-        const generationPromise =
-          ai.models.generateContent({
-            model:
-              modelName,
-            contents:
-              params.contents,
-            config:
-              params.config
-          });
+        continue;
+      }
 
-        const timeoutPromise =
-          new Promise<never>(
-            (
-              _resolve,
-              reject
-            ) => {
-              timeoutHandle =
-                setTimeout(
-                  () => {
-                    reject(
-                      new Error(
-                        `Gemini model ${modelName} timed out after ${timeoutMs}ms.`
-                      )
-                    );
-                  },
-                  timeoutMs
-                );
-            }
-          );
+      attemptedModels +=
+        1;
 
-        const response =
-          await Promise.race([
-            generationPromise,
-            timeoutPromise
-          ]);
+      for (
+        let retryAttempt = 0;
+        retryAttempt <=
+        maxRetries;
+        retryAttempt += 1
+      ) {
+        const currentTime =
+          Date.now();
 
-        return response;
-      } catch (error: any) {
-        console.warn(
-          `[Gemini Model Warning] ${modelName} failed:`,
-          error?.message ||
-            error
-        );
-
-        lastError =
-          error;
-      } finally {
         if (
-          timeoutHandle
+          currentTime >=
+          overallDeadline
         ) {
-          clearTimeout(
-            timeoutHandle
+          break;
+        }
+
+        const remainingTime =
+          overallDeadline -
+          currentTime;
+
+        const attemptTimeout =
+          Math.min(
+            timeoutMs,
+            remainingTime
           );
+
+        if (
+          attemptTimeout <=
+          0
+        ) {
+          break;
+        }
+
+        const attemptNumber =
+          retryAttempt + 1;
+
+        try {
+          console.info(
+            `[Gemini] Attempting model: ${modelName} (attempt ${attemptNumber}/${maxRetries + 1})`
+          );
+
+          const response =
+            await this.executeGeminiModelRequest(
+              modelName,
+              params,
+              attemptTimeout
+            );
+
+          this.markModelSuccess(
+            modelName
+          );
+
+          console.info(
+            `[Gemini] Model ${modelName} succeeded on attempt ${attemptNumber}.`
+          );
+
+          return {
+            response,
+            model:
+              modelName
+          };
+        } catch (error: any) {
+          lastError =
+            error;
+
+          const transient =
+            this.isTransientGeminiError(
+              error
+            );
+
+          const status =
+            this.getGeminiErrorStatus(
+              error
+            );
+
+          const message =
+            this.getGeminiErrorMessage(
+              error
+            );
+
+          console.warn(
+            `[Gemini Model Warning] ${modelName} attempt ${attemptNumber} failed${status ? ` with status ${status}` : ''}: ${message}`
+          );
+
+          /**
+           * Non-transient errors should normally not be retried
+           * against the same model because retries will not fix
+           * invalid requests, authentication problems, malformed
+           * configuration, etc.
+           */
+          if (
+            !transient
+          ) {
+            console.warn(
+              `[Gemini] ${modelName} returned a non-transient error. Moving to the next model.`
+            );
+
+            this.markModelFailure(
+              modelName,
+              modelCooldownMs,
+              modelCooldownMaxMs
+            );
+
+            break;
+          }
+
+          /**
+           * A transient failure means the model/provider may recover.
+           * Retry the same model while retry budget remains.
+           */
+          if (
+            retryAttempt <
+            maxRetries
+          ) {
+            const delay =
+              this.calculateRetryDelay(
+                attemptNumber,
+                retryBaseDelayMs,
+                retryMaxDelayMs
+              );
+
+            const timeRemaining =
+              Math.max(
+                0,
+                overallDeadline -
+                  Date.now()
+              );
+
+            if (
+              timeRemaining <=
+              100
+            ) {
+              break;
+            }
+
+            const boundedDelay =
+              Math.min(
+                delay,
+                Math.max(
+                  0,
+                  timeRemaining -
+                    100
+                )
+              );
+
+            console.info(
+              `[Gemini] Retrying ${modelName} after ${boundedDelay}ms.`
+            );
+
+            await this.sleep(
+              boundedDelay
+            );
+
+            continue;
+          }
+
+          /**
+           * Retries for this model are exhausted.
+           * Put the model on cooldown and rotate to another model.
+           */
+          this.markModelFailure(
+            modelName,
+            modelCooldownMs,
+            modelCooldownMaxMs
+          );
+
+          console.warn(
+            `[Gemini] Exhausted retries for ${modelName}; rotating to another model.`
+          );
+
+          break;
         }
       }
     }
 
-    throw (
-      lastError ||
-      new Error(
-        'No Gemini model could generate a response.'
-      )
+    const elapsed =
+      Date.now() -
+      requestStartedAt;
+
+    const lastMessage =
+      this.getGeminiErrorMessage(
+        lastError
+      );
+
+    const diagnosticMessage =
+      [
+        'All available Gemini generation attempts failed.',
+        `Elapsed: ${elapsed}ms.`,
+        `Models considered: ${modelsToTry.join(', ')}.`,
+        `Models attempted: ${attemptedModels}.`,
+        lastMessage
+          ? `Last error: ${lastMessage}`
+          : ''
+      ]
+        .filter(Boolean)
+        .join(' ');
+
+    console.error(
+      `[Gemini] ${diagnosticMessage}`
+    );
+
+    throw new Error(
+      diagnosticMessage
     );
   }
 
@@ -1831,10 +2594,11 @@ Respond to the user's current message.
     // Generate AI response
     // ==========================================
 
-    let modelResponse: any;
+    let modelGeneration:
+      GeminiGenerationResult;
 
     try {
-      modelResponse =
+      modelGeneration =
         await this.generateWithModelFallback(
           {
             contents:
@@ -1853,6 +2617,12 @@ Respond to the user's current message.
         'The AI model could not generate a response.'
       );
     }
+
+    const modelResponse =
+      modelGeneration.response;
+
+    const successfulModel =
+      modelGeneration.model;
 
     const parsed =
       this.parseGeminiResponse(
@@ -2076,13 +2846,22 @@ Respond to the user's current message.
 
       metadata: {
         model:
+          successfulModel ||
+          this.lastSuccessfulGeminiModel ||
           process.env.GEMINI_MODEL ||
           'gemini-3.8-flash',
+
+        configuredModel:
+          process.env.GEMINI_MODEL ||
+          'gemini-3.8-flash',
+
         toolCount:
           toolCalls.length,
+
         usedTools:
           toolCalls.length >
           0,
+
         sessionId:
           session.id
       }
